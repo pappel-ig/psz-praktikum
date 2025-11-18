@@ -2,8 +2,9 @@ use crate::controller::Floor;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
-use crossbeam_channel::{Receiver, Sender};
 use log::{debug, info};
+use tokio::sync::broadcast::Receiver;
+use tokio::sync::mpsc::Sender;
 use ControllerToElevatorsMsg::{CloseDoors, ElevatorMission, OpenDoors};
 use crate::msg::{ControllerToElevatorsMsg, ElevatorToControllerMsg};
 use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
@@ -24,8 +25,8 @@ pub enum DoorStatus {
 
 pub struct Elevator {
     pub id: String,
-    from_controller: Arc<Mutex<Receiver<ControllerToElevatorsMsg>>>,
-    to_controller: Arc<Mutex<Sender<ElevatorToControllerMsg>>>,
+    from_controller: Receiver<ControllerToElevatorsMsg>,
+    to_controller: Sender<ElevatorToControllerMsg>,
     state: ElevatorState,
 }
 
@@ -36,11 +37,10 @@ struct ElevatorState {
 }
 
 impl Elevator {
-    pub fn init(mut self) -> JoinHandle<()> {
-        let rx = Arc::clone(&self.from_controller);
-        thread::spawn(move || {
+    pub fn init(mut self) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
             loop {
-                for msg in rx.lock().unwrap().iter() {
+                if let Ok(msg) = self.from_controller.recv().await {
                     match msg {
                         ElevatorMission(elevator, dest)
                         => if self.id.eq(&elevator) { self.handle_mission(dest) },
@@ -50,11 +50,12 @@ impl Elevator {
                         => if self.id.eq(&elevator) { self.handle_close_doors() },
                     }
                 }
+
             }
         })
     }
 
-    pub fn new(id: &str, from_controller: Arc<Mutex<Receiver<ControllerToElevatorsMsg>>>, to_controller: Arc<Mutex<Sender<ElevatorToControllerMsg>>>) -> Self {
+    pub fn new(id: &str, from_controller: Receiver<ControllerToElevatorsMsg>, to_controller: Sender<ElevatorToControllerMsg>) -> Self {
         Elevator {
             id: id.to_string(),
             from_controller,
@@ -70,31 +71,31 @@ impl Elevator {
     fn handle_mission(&mut self, dest: Floor) {
         info!("Elevator {}: Mission to {:?}", self.id, dest);
         self.state.status = ElevatorStatus::MovingFromTo(self.state.floor, dest);
-        self.to_controller.lock().unwrap().send(ElevatorMoving(self.id.clone(), self.state.floor, dest)).unwrap();
+        let _ = self.to_controller.send(ElevatorMoving(self.id.clone(), self.state.floor, dest));
         Self::delay(1);
         info!("Elevator {}: Arrived at {:?}", self.id, dest);
         self.state.status = ElevatorStatus::IdleIn(dest);
-        self.to_controller.lock().unwrap().send(ElevatorArrived(self.id.clone(), dest)).unwrap();
+        let _ = self.to_controller.send(ElevatorArrived(self.id.clone(), dest));
     }
 
     fn handle_open_doors(&mut self) {
         info!("Elevator {}: Opening doors", self.id);
         self.state.doors_status = DoorStatus::Opening;
-        self.to_controller.lock().unwrap().send(DoorsOpening(self.id.clone())).unwrap();
+        let _ = self.to_controller.send(DoorsOpening(self.id.clone()));
         Self::delay(1);
         info!("Elevator {}: Doors opened", self.id);
         self.state.doors_status = DoorStatus::Open;
-        self.to_controller.lock().unwrap().send(DoorsOpened(self.id.clone())).unwrap();
+        let _ = self.to_controller.send(DoorsOpened(self.id.clone()));
     }
 
     fn handle_close_doors(&mut self) {
         info!("Elevator {}: Closing doors", self.id);
         self.state.doors_status = DoorStatus::Closing;
-        self.to_controller.lock().unwrap().send(DoorsClosing(self.id.clone())).unwrap();
+        let _ = self.to_controller.send(DoorsClosing(self.id.clone()));
         Self::delay(1);
         info!("Elevator {}: Doors closed", self.id);
         self.state.doors_status = DoorStatus::Closed;
-        self.to_controller.lock().unwrap().send(DoorsClosed(self.id.clone())).unwrap();
+        let _ = self.to_controller.send(DoorsClosed(self.id.clone()));
     }
 
     fn delay(ms: u64) {

@@ -1,5 +1,6 @@
 use crate::controller::Floor;
 
+#[derive(Clone)]
 pub enum PersonToControllerMsg {
     PersonRequestElevator(Floor),                       // Floor
     PersonEnteringElevator(String, String),             // Person ID, Elevator ID
@@ -9,12 +10,14 @@ pub enum PersonToControllerMsg {
     PersonChoosingFloor(String, String, Floor)          // Person ID, Elevator ID, Floor
 }
 
+#[derive(Clone)]
 pub enum ControllerToElevatorsMsg {
     ElevatorMission(String, Floor),                     // Elevator ID, Target Floor
     OpenDoors(String),                                  // Elevator ID
     CloseDoors(String)                                  // Elevator ID
 }
 
+#[derive(Clone)]
 pub enum ElevatorToControllerMsg {
     ElevatorMoving(String, Floor, Floor),               // Elevator ID, From Floor, To Floor
     ElevatorArrived(String, Floor),                     // Elevator ID, Floor

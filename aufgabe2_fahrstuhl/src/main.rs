@@ -1,7 +1,8 @@
-use std::sync::{Arc, Mutex};
 use std::thread;
-use crossbeam_channel::{unbounded, Receiver, Sender};
 use log::{info, LevelFilter};
+use tokio::sync::{broadcast, mpsc};
+use tokio::sync::broadcast::Receiver;
+use tokio::sync::mpsc::Sender;
 use crate::controller::{ElevatorController, Floor};
 use crate::elevator::Elevator;
 use crate::logger::SimpleLogger;
@@ -16,49 +17,50 @@ mod logger;
 
 static LOGGER: SimpleLogger = SimpleLogger;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info)).unwrap();
 
     // controller -> elevators
-    let (from_controller_to_elevators_tx, from_controller_to_elevators_rx) = unbounded();
+    let (from_controller_to_elevators_tx, _) = broadcast::channel(100);
     // elevator -> controller
-    let (elevator_to_controller_tx, elevator_to_controller_rx) = unbounded();
+    let (elevator_to_controller_tx, elevator_to_controller_rx) = mpsc::channel(100);
     // persons -> controller
-    let (person_to_controller_tx, person_to_controller_rx) = unbounded();
+    let (person_to_controller_tx, person_to_controller_rx) = mpsc::channel(100);
 
     let controller = ElevatorController::new(
-        Arc::new(Mutex::new(elevator_to_controller_rx)),
-        Arc::new(Mutex::new(from_controller_to_elevators_tx)),
-        Arc::new(Mutex::new(person_to_controller_rx)),
+        elevator_to_controller_rx,
+        from_controller_to_elevators_tx.clone(),
+        person_to_controller_rx,
         vec!["Dorisch".to_string(), "Ionisch".to_string(), "Korinthisch".to_string()]
     );
 
     let threads = vec![
-        create_elevator("Dorisch", from_controller_to_elevators_rx.clone(), elevator_to_controller_tx.clone()).init(),
-        create_elevator("Ionisch", from_controller_to_elevators_rx.clone(), elevator_to_controller_tx.clone()).init(),
-        create_elevator("Korinthisch", from_controller_to_elevators_rx.clone(), elevator_to_controller_tx.clone()).init(),
+        Elevator::new("Dorisch", from_controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone()).init(),
+        Elevator::new("Ionisch", from_controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone()).init(),
+        Elevator::new("Korinthisch", from_controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone()).init(),
         controller.init()
     ];
 
-    thread::sleep(std::time::Duration::from_millis(500));
-    person_to_controller_tx.send(PersonRequestElevator(Floor::Second)).unwrap();
-    thread::sleep(std::time::Duration::from_millis(500));
-    person_to_controller_tx.send(PersonEnteringElevator("1".to_string(), "Dorisch".to_string())).unwrap();
-    thread::sleep(std::time::Duration::from_millis(500));
-    person_to_controller_tx.send(PersonEnteredElevator("1".to_string(), "Dorisch".to_string())).unwrap();
-    thread::sleep(std::time::Duration::from_millis(500));
-    person_to_controller_tx.send(PersonChoosingFloor("1".to_string(), "Dorisch".to_string(), Floor::First)).unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let _ = person_to_controller_tx.send(PersonRequestElevator(Floor::Second)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let _ = person_to_controller_tx.send(PersonEnteringElevator("1".to_string(), "Dorisch".to_string())).await;
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let _ = person_to_controller_tx.send(PersonEnteredElevator("1".to_string(), "Dorisch".to_string())).await;
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let _ = person_to_controller_tx.send(PersonChoosingFloor("1".to_string(), "Dorisch".to_string(), Floor::First)).await;
 
     for _handle in threads {
-        _handle.join().unwrap();
+        _handle.await.unwrap();
     }
 }
 
 fn create_elevator(name: &str, from_controller_to_elevators_rx: Receiver<ControllerToElevatorsMsg>, elevator_to_controller_tx: Sender<ElevatorToControllerMsg>) -> Elevator {
     Elevator::new(
         name,
-        Arc::new(Mutex::new(from_controller_to_elevators_rx)),
-        Arc::new(Mutex::new(elevator_to_controller_tx)))
+        from_controller_to_elevators_rx,
+        elevator_to_controller_tx)
 }
 
 

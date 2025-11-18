@@ -1,16 +1,17 @@
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Formatter};
-use crossbeam_channel::{select, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use log::info;
+use tokio::select;
+use tokio::sync::broadcast::Sender;
+use tokio::sync::mpsc::Receiver;
 use ControllerToElevatorsMsg::CloseDoors;
-use ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived};
-use PersonToControllerMsg::{PersonRequestElevator, PersonEnteringElevator, PersonChoosingFloor};
 use crate::msg::{ControllerToElevatorsMsg, ElevatorToControllerMsg, PersonToControllerMsg};
-use crate::msg::ElevatorToControllerMsg::ElevatorMoving;
-use crate::msg::PersonToControllerMsg::{PersonEnteredElevator, PersonLeavingElevator, PersonLeftElevator};
+use crate::msg::ControllerToElevatorsMsg::{ElevatorMission, OpenDoors};
+use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
+use crate::msg::PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator, PersonLeavingElevator, PersonLeftElevator, PersonRequestElevator};
 
 #[derive(Clone, Copy)]
 #[derive(PartialEq)]
@@ -27,9 +28,9 @@ enum DoorStatus {
 }
 
 pub struct ElevatorController {
-    from_elevators: Arc<Mutex<Receiver<ElevatorToControllerMsg>>>,
-    from_persons: Arc<Mutex<Receiver<PersonToControllerMsg>>>,
-    to_elevators: Arc<Mutex<Sender<ControllerToElevatorsMsg>>>,
+    from_elevators: Receiver<ElevatorToControllerMsg>,
+    from_persons: Receiver<PersonToControllerMsg>,
+    to_elevators: Sender<ControllerToElevatorsMsg>,
     state: HashMap<String, ElevatorState>
 }
 
@@ -65,57 +66,50 @@ impl ElevatorState {
 
 impl ElevatorController {
 
-    pub fn init(mut self) -> JoinHandle<()> {
-        let from_elevators = Arc::clone(&self.from_elevators);
-        let from_persons = Arc::clone(&self.from_persons);
-        thread::spawn(move || {
+    pub fn init(mut self) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
             loop {
                 select! {
-                recv(from_elevators.lock().unwrap()) -> msg_result => {
-                    if let Ok(msg) = msg_result  {
+                    Some(msg) = self.from_elevators.recv() => {
                         match msg {
-                            ElevatorMoving(elevator, from, to)
-                                => { self.handle_elevator_moving(elevator, from, to) }
-                            ElevatorArrived(elevator, dest)
-                                => { self.handle_elevator_arrived(elevator, dest) }
-                            DoorsOpening(elevator)
-                                => { self.handle_doors_opening(elevator) }
-                            DoorsClosing(elevator)
-                                => { self.handle_doors_closing(elevator) }
-                            DoorsOpened(elevator)
-                                => { self.handle_doors_opened(elevator) }
-                            DoorsClosed(elevator)
-                                => { self.handle_doors_closed(elevator) }
-                        }
+                                ElevatorMoving(elevator, from, to)
+                                    => { self.handle_elevator_moving(elevator, from, to) }
+                                ElevatorArrived(elevator, dest)
+                                    => { self.handle_elevator_arrived(elevator, dest) }
+                                DoorsOpening(elevator)
+                                    => { self.handle_doors_opening(elevator) }
+                                DoorsClosing(elevator)
+                                    => { self.handle_doors_closing(elevator) }
+                                DoorsOpened(elevator)
+                                    => { self.handle_doors_opened(elevator) }
+                                DoorsClosed(elevator)
+                                    => { self.handle_doors_closed(elevator) }
+                            }
                     }
-
-                }
-                recv(from_persons.lock().unwrap()) -> msg_result => {
-                    if let Ok(msg) = msg_result  {
+                    Some(msg) = self.from_persons.recv() => {
                         match msg {
-                            PersonRequestElevator(floor)
-                                => { self.handle_person_request_elevator(floor) }
-                            PersonEnteringElevator(person, elevator)
-                                => { self.handle_person_entering_elevator(person, elevator) }
-                            PersonEnteredElevator(person, elevator)
-                                => { self.handle_person_entered_elevator(person, elevator) }
-                            PersonLeavingElevator(person, elevator)
-                                => { self.handle_person_leaving_elevator(person, elevator) }
-                            PersonLeftElevator(person, elevator)
-                                => { self.handle_person_left_elevator(person, elevator) }
-                            PersonChoosingFloor(person, elevator, floor)
-                                => { self.handle_person_choosing_floor(person, elevator, floor) }
-                        }
+                                PersonRequestElevator(floor)
+                                    => { self.handle_person_request_elevator(floor) }
+                                PersonEnteringElevator(person, elevator)
+                                    => { self.handle_person_entering_elevator(person, elevator) }
+                                PersonEnteredElevator(person, elevator)
+                                    => { self.handle_person_entered_elevator(person, elevator) }
+                                PersonLeavingElevator(person, elevator)
+                                    => { self.handle_person_leaving_elevator(person, elevator) }
+                                PersonLeftElevator(person, elevator)
+                                    => { self.handle_person_left_elevator(person, elevator) }
+                                PersonChoosingFloor(person, elevator, floor)
+                                    => { self.handle_person_choosing_floor(person, elevator, floor) }
+                            }
                     }
                 }
-            }
             }
         })
     }
 
-    pub fn new(from_elevators: Arc<Mutex<Receiver<ElevatorToControllerMsg>>>,
-               to_elevators: Arc<Mutex<Sender<ControllerToElevatorsMsg>>>,
-               from_persons: Arc<Mutex<Receiver<PersonToControllerMsg>>>,
+    pub fn new(from_elevators: Receiver<ElevatorToControllerMsg>,
+               to_elevators: Sender<ControllerToElevatorsMsg>,
+               from_persons: Receiver<PersonToControllerMsg>,
                elevators: Vec<String>) -> Self {
         let mut state = HashMap::new();
         for elevator in elevators {
@@ -170,7 +164,7 @@ impl ElevatorController {
 
         if let Some(target) = state.missions.front() {
             if state.passengers <= 2 {
-                self.to_elevators.lock().unwrap().send(ControllerToElevatorsMsg::ElevatorMission(elevator.clone(), *target)).unwrap();
+                let _ = self.to_elevators.send(ControllerToElevatorsMsg::ElevatorMission(elevator.clone(), *target));
             }
         }
     }
@@ -184,11 +178,11 @@ impl ElevatorController {
 
         if (elevator.door == DoorStatus::Closed) && (elevator.floor == target) {
             info!("Sending open doors command to elevator {}", elevator.id);
-            self.to_elevators.lock().unwrap().send(ControllerToElevatorsMsg::OpenDoors(elevator.id.clone())).unwrap();
+            let _ = self.to_elevators.send(ControllerToElevatorsMsg::OpenDoors(elevator.id.clone()));
         } else if elevator.door == DoorStatus::Closed {
             info!("Sending mission to elevator {} to floor {:?}", elevator.id, target);
             elevator.missions.push_back(target);
-            self.to_elevators.lock().unwrap().send(ControllerToElevatorsMsg::ElevatorMission(elevator.id.clone(), target)).unwrap();
+            let _ = self.to_elevators.send(ControllerToElevatorsMsg::ElevatorMission(elevator.id.clone(), target));
         } else {
             info!("Adding mission to elevator {} to floor {:?}", elevator.id, target);
             elevator.missions.push_back(target);
@@ -225,6 +219,6 @@ impl ElevatorController {
             state.missions.push_back(dest);
         }
 
-        self.to_elevators.lock().unwrap().send(CloseDoors(elevator.clone())).unwrap();
+        let _ = self.to_elevators.send(CloseDoors(elevator.clone()));
     }
 }
