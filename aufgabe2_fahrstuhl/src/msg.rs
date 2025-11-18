@@ -3,6 +3,9 @@ use crate::controller::Floor;
 pub enum PersonToControllerMsg {
     PersonRequestElevator(Floor),                       // Floor
     PersonEnteringElevator(String, String),             // Person ID, Elevator ID
+    PersonEnteredElevator(String, String),              // Person ID, Elevator ID
+    PersonLeavingElevator(String, String),              // Person ID, Elevator ID
+    PersonLeftElevator(String, String),                 // Person ID, Elevator ID
     PersonChoosingFloor(String, String, Floor)          // Person ID, Elevator ID, Floor
 }
 
