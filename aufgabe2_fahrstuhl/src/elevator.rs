@@ -1,8 +1,6 @@
 use crate::controller::Floor;
-use std::sync::{Arc, Mutex};
 use std::thread;
-use std::thread::JoinHandle;
-use log::{debug, info};
+use log::{info};
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
 use ControllerToElevatorsMsg::{CloseDoors, ElevatorMission, OpenDoors};
@@ -43,11 +41,11 @@ impl Elevator {
                 if let Ok(msg) = self.from_controller.recv().await {
                     match msg {
                         ElevatorMission(elevator, dest)
-                        => if self.id.eq(&elevator) { self.handle_mission(dest) },
+                        => if self.id.eq(&elevator) { self.handle_mission(dest).await },
                         OpenDoors(elevator)
-                        => if self.id.eq(&elevator) { self.handle_open_doors() },
+                        => if self.id.eq(&elevator) { self.handle_open_doors().await },
                         CloseDoors(elevator)
-                        => if self.id.eq(&elevator) { self.handle_close_doors() },
+                        => if self.id.eq(&elevator) { self.handle_close_doors().await },
                     }
                 }
 
@@ -68,34 +66,34 @@ impl Elevator {
         }
     }
 
-    fn handle_mission(&mut self, dest: Floor) {
+    async fn handle_mission(&mut self, dest: Floor) {
         info!("Elevator {}: Mission to {:?}", self.id, dest);
         self.state.status = ElevatorStatus::MovingFromTo(self.state.floor, dest);
-        let _ = self.to_controller.send(ElevatorMoving(self.id.clone(), self.state.floor, dest));
+        let _ = self.to_controller.send(ElevatorMoving(self.id.clone(), self.state.floor, dest)).await;
         Self::delay(1);
         info!("Elevator {}: Arrived at {:?}", self.id, dest);
         self.state.status = ElevatorStatus::IdleIn(dest);
-        let _ = self.to_controller.send(ElevatorArrived(self.id.clone(), dest));
+        let _ = self.to_controller.send(ElevatorArrived(self.id.clone(), dest)).await;
     }
 
-    fn handle_open_doors(&mut self) {
+    async fn handle_open_doors(&mut self) {
         info!("Elevator {}: Opening doors", self.id);
         self.state.doors_status = DoorStatus::Opening;
-        let _ = self.to_controller.send(DoorsOpening(self.id.clone()));
+        let _ = self.to_controller.send(DoorsOpening(self.id.clone())).await;
         Self::delay(1);
         info!("Elevator {}: Doors opened", self.id);
         self.state.doors_status = DoorStatus::Open;
-        let _ = self.to_controller.send(DoorsOpened(self.id.clone()));
+        let _ = self.to_controller.send(DoorsOpened(self.id.clone())).await;
     }
 
-    fn handle_close_doors(&mut self) {
+    async fn handle_close_doors(&mut self) {
         info!("Elevator {}: Closing doors", self.id);
         self.state.doors_status = DoorStatus::Closing;
-        let _ = self.to_controller.send(DoorsClosing(self.id.clone()));
+        let _ = self.to_controller.send(DoorsClosing(self.id.clone())).await;
         Self::delay(1);
         info!("Elevator {}: Doors closed", self.id);
         self.state.doors_status = DoorStatus::Closed;
-        let _ = self.to_controller.send(DoorsClosed(self.id.clone()));
+        let _ = self.to_controller.send(DoorsClosed(self.id.clone())).await;
     }
 
     fn delay(ms: u64) {

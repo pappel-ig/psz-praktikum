@@ -1,13 +1,9 @@
-use std::thread;
-use log::{info, LevelFilter};
-use tokio::sync::{broadcast, mpsc};
-use tokio::sync::broadcast::Receiver;
-use tokio::sync::mpsc::Sender;
 use crate::controller::{ElevatorController, Floor};
 use crate::elevator::Elevator;
 use crate::logger::SimpleLogger;
-use crate::msg::{ControllerToElevatorsMsg, ElevatorToControllerMsg, PersonToControllerMsg};
 use crate::msg::PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator, PersonRequestElevator};
+use log::LevelFilter;
+use tokio::sync::{broadcast, mpsc};
 
 mod controller;
 mod elevator;
@@ -54,13 +50,6 @@ async fn main() {
     for _handle in threads {
         _handle.await.unwrap();
     }
-}
-
-fn create_elevator(name: &str, from_controller_to_elevators_rx: Receiver<ControllerToElevatorsMsg>, elevator_to_controller_tx: Sender<ElevatorToControllerMsg>) -> Elevator {
-    Elevator::new(
-        name,
-        from_controller_to_elevators_rx,
-        elevator_to_controller_tx)
 }
 
 
