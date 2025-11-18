@@ -6,4 +6,3 @@ edition = "2024"
 [dependencies]
 crossbeam-channel = "0.5.15"
 rand = "0.10.0-rc.5"
-uuid = { version = "1.18.1", features = ["v4"] }

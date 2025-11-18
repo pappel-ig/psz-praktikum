@@ -5,6 +5,7 @@ use std::thread::JoinHandle;
 use crossbeam_channel::{Receiver, Sender};
 use ControllerToElevatorsMsg::{CloseDoors, ElevatorMission, OpenDoors};
 use crate::msg::{ControllerToElevatorsMsg, ElevatorToControllerMsg};
+use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
 
 pub enum ElevatorStatus {
     IdleIn(Floor),
@@ -28,6 +29,7 @@ pub struct Elevator {
 }
 
 struct ElevatorState {
+    floor: Floor,
     status: ElevatorStatus,
     doors_status: DoorStatus,
 }
@@ -38,9 +40,12 @@ impl Elevator {
         thread::spawn(move || {
             for msg in rx.lock().unwrap().iter() {
                 match msg {
-                    ElevatorMission(_elevator_id, _target_floor) => {},
-                    OpenDoors(_elevator_id) => {},
-                    CloseDoors(_elevator_id) => {}
+                    ElevatorMission(elevator, dest)
+                        => if self.id.eq(&elevator) { self.handle_mission(dest) },
+                    OpenDoors(elevator)
+                        => if self.id.eq(&elevator) { self.handle_open_doors() },
+                    CloseDoors(elevator)
+                        => if self.id.eq(&elevator) { self.handle_close_doors() },
                 }
             }
         })
@@ -52,10 +57,39 @@ impl Elevator {
             from_controller,
             to_controller,
             state: ElevatorState {
+                floor: Floor::Ground,
                 status: ElevatorStatus::IdleIn(Floor::Ground),
-                doors_status: DoorStatus::Closed
+                doors_status: DoorStatus::Closed,
             }
         }
+    }
+
+    fn handle_mission(&mut self, dest: Floor) {
+        self.state.status = ElevatorStatus::MovingFromTo(self.state.floor, dest);
+        self.to_controller.lock().unwrap().send(ElevatorMoving(self.id.clone(), self.state.floor, dest)).unwrap();
+        Self::delay(7000);
+        self.state.status = ElevatorStatus::IdleIn(dest);
+        self.to_controller.lock().unwrap().send(ElevatorArrived(self.id.clone(), dest)).unwrap();
+    }
+
+    fn handle_open_doors(&mut self) {
+        self.state.doors_status = DoorStatus::Opening;
+        self.to_controller.lock().unwrap().send(DoorsOpening(self.id.clone())).unwrap();
+        Self::delay(500);
+        self.state.doors_status = DoorStatus::Open;
+        self.to_controller.lock().unwrap().send(DoorsOpened(self.id.clone())).unwrap();
+    }
+
+    fn handle_close_doors(&mut self) {
+        self.state.doors_status = DoorStatus::Closing;
+        self.to_controller.lock().unwrap().send(DoorsClosing(self.id.clone())).unwrap();
+        Self::delay(500);
+        self.state.doors_status = DoorStatus::Closed;
+        self.to_controller.lock().unwrap().send(DoorsClosed(self.id.clone())).unwrap();
+    }
+
+    fn delay(ms: u64) {
+        thread::sleep(std::time::Duration::from_millis(ms));
     }
 }
 
