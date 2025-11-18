@@ -68,31 +68,31 @@ impl Elevator {
     }
 
     fn handle_mission(&mut self, dest: Floor) {
-        debug!("Elevator {}: Mission to {:?}", self.id, dest);
+        info!("Elevator {}: Mission to {:?}", self.id, dest);
         self.state.status = ElevatorStatus::MovingFromTo(self.state.floor, dest);
         self.to_controller.lock().unwrap().send(ElevatorMoving(self.id.clone(), self.state.floor, dest)).unwrap();
-        Self::delay(7000);
-        debug!("Elevator {}: Arrived at {:?}", self.id, dest);
+        Self::delay(1);
+        info!("Elevator {}: Arrived at {:?}", self.id, dest);
         self.state.status = ElevatorStatus::IdleIn(dest);
         self.to_controller.lock().unwrap().send(ElevatorArrived(self.id.clone(), dest)).unwrap();
     }
 
     fn handle_open_doors(&mut self) {
-        debug!("Elevator {}: Opening doors", self.id);
+        info!("Elevator {}: Opening doors", self.id);
         self.state.doors_status = DoorStatus::Opening;
         self.to_controller.lock().unwrap().send(DoorsOpening(self.id.clone())).unwrap();
-        Self::delay(500);
-        debug!("Elevator {}: Doors opened", self.id);
+        Self::delay(1);
+        info!("Elevator {}: Doors opened", self.id);
         self.state.doors_status = DoorStatus::Open;
         self.to_controller.lock().unwrap().send(DoorsOpened(self.id.clone())).unwrap();
     }
 
     fn handle_close_doors(&mut self) {
-        debug!("Elevator {}: Closing doors", self.id);
+        info!("Elevator {}: Closing doors", self.id);
         self.state.doors_status = DoorStatus::Closing;
         self.to_controller.lock().unwrap().send(DoorsClosing(self.id.clone())).unwrap();
-        Self::delay(500);
-        debug!("Elevator {}: Doors closed", self.id);
+        Self::delay(1);
+        info!("Elevator {}: Doors closed", self.id);
         self.state.doors_status = DoorStatus::Closed;
         self.to_controller.lock().unwrap().send(DoorsClosed(self.id.clone())).unwrap();
     }

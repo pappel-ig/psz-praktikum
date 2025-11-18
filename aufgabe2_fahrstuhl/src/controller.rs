@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use log::info;
+use ControllerToElevatorsMsg::CloseDoors;
 use ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived};
 use PersonToControllerMsg::{PersonRequestElevator, PersonEnteringElevator, PersonChoosingFloor};
 use crate::msg::{ControllerToElevatorsMsg, ElevatorToControllerMsg, PersonToControllerMsg};
@@ -224,6 +225,6 @@ impl ElevatorController {
             state.missions.push_back(dest);
         }
 
-        self.to_elevators.lock().unwrap().send(ControllerToElevatorsMsg::CloseDoors(elevator.clone())).unwrap();
+        self.to_elevators.lock().unwrap().send(CloseDoors(elevator.clone())).unwrap();
     }
 }

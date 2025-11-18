@@ -6,7 +6,7 @@ use crate::controller::{ElevatorController, Floor};
 use crate::elevator::Elevator;
 use crate::logger::SimpleLogger;
 use crate::msg::{ControllerToElevatorsMsg, ElevatorToControllerMsg, PersonToControllerMsg};
-use crate::msg::PersonToControllerMsg::PersonRequestElevator;
+use crate::msg::PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator, PersonRequestElevator};
 
 mod controller;
 mod elevator;
@@ -41,8 +41,13 @@ fn main() {
     ];
 
     thread::sleep(std::time::Duration::from_millis(500));
-
-    person_to_controller_tx.send(PersonRequestElevator(Floor::Second)).expect("dsd");
+    person_to_controller_tx.send(PersonRequestElevator(Floor::Second)).unwrap();
+    thread::sleep(std::time::Duration::from_millis(500));
+    person_to_controller_tx.send(PersonEnteringElevator("1".to_string(), "Dorisch".to_string())).unwrap();
+    thread::sleep(std::time::Duration::from_millis(500));
+    person_to_controller_tx.send(PersonEnteredElevator("1".to_string(), "Dorisch".to_string())).unwrap();
+    thread::sleep(std::time::Duration::from_millis(500));
+    person_to_controller_tx.send(PersonChoosingFloor("1".to_string(), "Dorisch".to_string(), Floor::First)).unwrap();
 
     for _handle in threads {
         _handle.join().unwrap();
