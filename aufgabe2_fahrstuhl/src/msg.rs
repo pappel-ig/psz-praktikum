@@ -1,6 +1,7 @@
 use crate::controller::{BoardingStatus, Floor};
 
 #[derive(Clone)]
+#[derive(Debug)]
 pub enum PersonToControllerMsg {
     PersonRequestElevator(Floor),                           // Floor
     PersonEnteringElevator(String, String),                 // Person ID, Elevator ID

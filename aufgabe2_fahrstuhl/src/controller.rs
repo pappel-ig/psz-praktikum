@@ -120,26 +120,27 @@ impl ElevatorController {
                             }
                     }
                     Some(msg) = self.from_persons.recv() => {
+                        info!("{:?}", msg);
                         match msg {
-                                PersonRequestElevator(floor) => {
-                                    self.handle_person_request_elevator(floor).await;
-                                }
-                                PersonEnteringElevator(person, elevator) => {
-                                    self.handle_person_entering_elevator(person, elevator.clone()).await;
-                                }
-                                PersonEnteredElevator(person, elevator) => {
-                                    self.handle_person_entered_elevator(person, elevator.clone()).await;
-                                }
-                                PersonLeavingElevator(person, elevator) => {
-                                    self.handle_person_leaving_elevator(person, elevator.clone()).await;
-                                }
-                                PersonLeftElevator(person, elevator) => {
-                                    self.handle_person_left_elevator(person, elevator.clone()).await;
-                                }
-                                PersonChoosingFloor(person, elevator, floor) => {
-                                    self.handle_person_choosing_floor(person, elevator.clone(), floor).await;
-                                }
+                            PersonRequestElevator(floor) => {
+                                self.handle_person_request_elevator(floor).await;
                             }
+                            PersonEnteringElevator(person, elevator) => {
+                                self.handle_person_entering_elevator(person, elevator.clone()).await;
+                            }
+                            PersonEnteredElevator(person, elevator) => {
+                                self.handle_person_entered_elevator(person, elevator.clone()).await;
+                            }
+                            PersonLeavingElevator(person, elevator) => {
+                                self.handle_person_leaving_elevator(person, elevator.clone()).await;
+                            }
+                            PersonLeftElevator(person, elevator) => {
+                                self.handle_person_left_elevator(person, elevator.clone()).await;
+                            }
+                            PersonChoosingFloor(person, elevator, floor) => {
+                                self.handle_person_choosing_floor(person, elevator.clone(), floor).await;
+                            }
+                        }
                     }
                 }
             }
