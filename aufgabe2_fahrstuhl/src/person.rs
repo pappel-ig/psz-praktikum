@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Display, Formatter};
-use log::info;
+use log::{debug, error, info};
 use rand::prelude::SliceRandom;
 use rand::rng;
 use tokio::sync::broadcast::Receiver;
@@ -34,12 +34,12 @@ struct PersonState {
     current_floor: Floor,
     destination_floor: Floor,
     elevator: Option<String>,
-    has_requested_elevator: bool,
+    finished: bool,
 }
 
 impl Display for PersonState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{ status: {:?}, floor: {:?}, dest: {:?}, elevator: {:?}, requested: {:?} }}", self.status, self.current_floor, self.destination_floor, self.elevator, self.has_requested_elevator)
+        write!(f, "{{ status: {:?}, floor: {:?}, dest: {:?}, elevator: {:?}, requested: {:?} }}", self.status, self.current_floor, self.destination_floor, self.elevator, self.finished)
     }
 }
 
@@ -65,7 +65,7 @@ impl Person {
             from_controller: from_controller_to_persons,
             to_controller: from_person_to_controller,
             state: PersonState {
-                has_requested_elevator: false,
+                finished: false,
                 status: PersonStatus::Idle,
                 current_floor,
                 destination_floor,
@@ -84,7 +84,7 @@ impl Person {
             from_controller: from_controller_to_persons,
             to_controller: from_person_to_controller,
             state: PersonState {
-                has_requested_elevator: false,
+                finished: false,
                 status: PersonStatus::Idle,
                 current_floor,
                 destination_floor,
@@ -123,8 +123,7 @@ impl Person {
     }
 
     async fn handle_elevator_halt(&mut self, elevator: String, floor: Floor) {
-        if self.state.current_floor.eq(&floor) && self.state.status.eq(&PersonStatus::Idle) {
-            info!("PersonEnteredElevator(person={}, elevator={}, dest={})", self.id.clone(), elevator, self.state.destination_floor);
+        if self.state.current_floor.eq(&floor) && self.state.status.eq(&PersonStatus::Idle) && !self.state.finished {
             self.state.status = PersonStatus::Entering;
             let _ = self.to_controller.send(PersonToControllerMsg::PersonEnteringElevator(self.id.clone(), elevator.clone())).await;
             delay(1);
@@ -132,10 +131,12 @@ impl Person {
             self.state.status = PersonStatus::Choosing;
             delay(1);
             let _ = self.to_controller.send(PersonToControllerMsg::PersonChoosingFloor(self.id.clone(), elevator.clone(), self.state.destination_floor)).await;
+            info!("PersonEnteredElevator(person={}, elevator={}, dest={})", self.id.clone(), elevator, self.state.destination_floor);
         }
         if self.state.destination_floor.eq(&floor) {
             info!("PersonLeavingElevator(person={}, elevator={})", self.id.clone(), elevator);
             self.leave_elevator(self.id.clone(), elevator).await;
+            self.state.finished = true;
         }
     }
 
@@ -150,7 +151,7 @@ impl Person {
 
     async fn handle_update_boarding_status(&mut self, person: String, elevator: String, boarding_status: BoardingStatus) {
         if self.id.eq(&person) {
-            info!("BoardinAccepted(person={}, elevator={}, status={})", self.id.clone(), elevator, boarding_status);
+            info!("Boarding{}(person={}, elevator={})", boarding_status, self.id.clone(), elevator);
             match boarding_status {
                 BoardingStatus::Accepted => {
                     self.state.status = PersonStatus::InElevator;
@@ -164,13 +165,13 @@ impl Person {
     }
 
     async fn leave_elevator(&mut self, person: String, elevator: String) {
-        info!("LeftElevator(person={}, elevator={})", self.id.clone(), elevator);
         self.state.elevator = None;
         self.state.status = Leaving;
         let _ = self.to_controller.send(PersonLeavingElevator(person.clone(), elevator.clone())).await;
         delay(1);
         self.state.status = PersonStatus::Idle;
-        let _ = self.to_controller.send(PersonLeftElevator(person, elevator)).await;
+        let _ = self.to_controller.send(PersonLeftElevator(person, elevator.clone())).await;
+        info!("LeftElevator(person={}, elevator={})", self.id.clone(), elevator);
     }
 
     fn pick_two_distinct_floors() -> (Floor, Floor) {

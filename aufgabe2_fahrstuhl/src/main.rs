@@ -1,4 +1,4 @@
-use crate::controller::Floor::{Ground, Second};
+use crate::controller::Floor::{First, Ground, Second};
 use crate::controller::ElevatorController;
 use crate::elevator::Elevator;
 use crate::logger::SimpleLogger;
@@ -49,13 +49,9 @@ async fn main() {
 
     delay(500);
 
-    //threads.push(Person::with("Alice", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone(), Ground, Second).init());
-    //threads.push(Person::with("Bob", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone(), First, Ground).init());
-    //threads.push(Person::with("Mallory", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone(), Second, Ground).init());
-
     threads.push(Person::with("Alice", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone(), Ground, Second).init());
-    threads.push(Person::with("Bob", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone(), Ground, Second).init());
-
+    threads.push(Person::with("Bob", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone(), First, Ground).init());
+    threads.push(Person::with("Mallory", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone(), Second, Ground).init());
 
     delay(500);
 
