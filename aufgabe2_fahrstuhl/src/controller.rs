@@ -1,7 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 use std::time::{Duration, Instant};
-use log::{debug, info};
+use log::{debug, info, trace};
 use tokio::select;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc::Receiver;
@@ -120,7 +120,7 @@ impl ElevatorController {
                             }
                     }
                     Some(msg) = self.from_persons.recv() => {
-                        info!("{:?}", msg);
+                        trace!("{:?}", msg);
                         match msg {
                             PersonRequestElevator(floor) => {
                                 self.handle_person_request_elevator(floor).await;

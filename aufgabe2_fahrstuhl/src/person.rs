@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Display, Formatter};
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 use rand::prelude::SliceRandom;
 use rand::rng;
 use tokio::sync::broadcast::Receiver;
@@ -98,6 +98,7 @@ impl Person {
             self.request_elevator().await;
             loop {
                 if let Ok(msg) = self.from_controller.recv().await {
+                    trace!("{:?}", msg);
                     match msg {
                         ElevatorHalt(elevator, floor) => {
                             self.handle_elevator_halt(elevator.clone(), floor.clone()).await

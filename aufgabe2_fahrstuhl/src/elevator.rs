@@ -1,5 +1,5 @@
 use crate::controller::Floor;
-use log::{debug, info};
+use log::{debug, info, trace};
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
 use ControllerToElevatorsMsg::{CloseDoors, ElevatorMission, OpenDoors};
@@ -39,6 +39,7 @@ impl Elevator {
         tokio::spawn(async move {
             loop {
                 if let Ok(msg) = self.from_controller.recv().await {
+                    trace!("{:?}", msg);
                     match msg {
                         ElevatorMission(elevator, dest) => {
                             if self.id.eq(&elevator) { self.handle_mission(dest).await }
