@@ -29,6 +29,7 @@ pub enum ControllerToElevatorsMsg {
 }
 
 #[derive(Clone)]
+#[derive(Debug)]
 pub enum ElevatorToControllerMsg {
     ElevatorMoving(String, Floor, Floor),                   // Elevator ID, From Floor, To Floor
     ElevatorArrived(String, Floor),                         // Elevator ID, Floor

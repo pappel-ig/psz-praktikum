@@ -5,13 +5,16 @@ use log::{debug, info, trace};
 use tokio::select;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc::Receiver;
+use tokio::task::JoinHandle;
 use ControllerToElevatorsMsg::CloseDoors;
 use ControllerToPersonsMsg::{TooManyPassengers};
+use utils::get_closing_task;
 use crate::msg::{ControllerToElevatorsMsg, ControllerToPersonsMsg, ElevatorToControllerMsg, PersonToControllerMsg};
 use crate::msg::ControllerToElevatorsMsg::{ElevatorMission, OpenDoors};
 use crate::msg::ControllerToPersonsMsg::{ElevatorDeparted, ElevatorHalt, UpdateBoardingStatus};
 use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
 use crate::msg::PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator, PersonLeavingElevator, PersonLeftElevator, PersonRequestElevator};
+use crate::utils;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Floor {
@@ -46,6 +49,7 @@ struct ElevatorState {
     missions: VecDeque<Floor>,
     passengers: Vec<String>,
     door: DoorStatus,
+    closing_task: Option<JoinHandle<()>>,
 }
 
 impl Display for Floor {
@@ -87,40 +91,44 @@ impl ElevatorState {
             missions: VecDeque::new(),
             passengers: Vec::new(),
             door: DoorStatus::Closed,
+            closing_task: None
         }
     }
 }
 
 impl ElevatorController {
 
-    pub fn init(mut self) -> tokio::task::JoinHandle<()> {
+    pub fn init(mut self) -> JoinHandle<()> {
         tokio::spawn(async move {
             loop {
                 select! {
                     Some(msg) = self.from_elevators.recv() => {
+                        info!("{:?}", msg);
+                        info!("{:?}", self.state);
                         match msg {
-                                ElevatorMoving(elevator, from, to) => {
-                                    self.handle_elevator_moving(elevator.clone(), from, to).await;
-                                }
-                                ElevatorArrived(elevator, dest) => {
-                                    self.handle_elevator_arrived(elevator.clone(), dest).await;
-                                }
-                                DoorsOpening(elevator) => {
-                                    self.handle_doors_opening(elevator.clone()).await;
-                                }
-                                DoorsClosing(elevator) => {
-                                    self.handle_doors_closing(elevator.clone()).await;
-                                }
-                                DoorsOpened(elevator) => {
-                                    self.handle_doors_opened(elevator.clone()).await;
-                                }
-                                DoorsClosed(elevator) => {
-                                    self.handle_doors_closed(elevator.clone()).await;
-                                }
+                            ElevatorMoving(elevator, from, to) => {
+                                self.handle_elevator_moving(elevator.clone(), from, to).await;
                             }
+                            ElevatorArrived(elevator, dest) => {
+                                self.handle_elevator_arrived(elevator.clone(), dest).await;
+                            }
+                            DoorsOpening(elevator) => {
+                                self.handle_doors_opening(elevator.clone()).await;
+                            }
+                            DoorsClosing(elevator) => {
+                                self.handle_doors_closing(elevator.clone()).await;
+                            }
+                            DoorsOpened(elevator) => {
+                                self.handle_doors_opened(elevator.clone()).await;
+                            }
+                            DoorsClosed(elevator) => {
+                                self.handle_doors_closed(elevator.clone()).await;
+                            }
+                        }
                     }
                     Some(msg) = self.from_persons.recv() => {
-                        trace!("{:?}", msg);
+                        info!("{:?}", msg);
+                        info!("{:?}", self.state);
                         match msg {
                             PersonRequestElevator(floor) => {
                                 self.handle_person_request_elevator(floor).await;
@@ -215,6 +223,8 @@ impl ElevatorController {
             let person_to_leave = state.passengers.last().unwrap();
             let _ = self.to_persons.send(TooManyPassengers(person_to_leave.clone(), elevator.clone()));
         }
+
+        state.closing_task = get_closing_task(self.to_elevators.clone(), elevator);
     }
 
     async fn handle_doors_closed(&mut self, elevator: String) {
