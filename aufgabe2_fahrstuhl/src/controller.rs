@@ -169,20 +169,22 @@ impl ElevatorController {
     }
 
     async fn handle_elevator_arrived(&mut self, elevator: String, dest: Floor) {
-        let entry = self.state.entry(elevator.clone());
+        let state = self.state.get_mut(&elevator).unwrap();
 
-        entry.and_modify(|elevator_state| {
-            elevator_state.floor = dest;
-            elevator_state.missions.pop_front().unwrap();
-        });
+        if state.floor == dest {
+            return;
+        }
 
-        debug!("ElevatorArrived(elevator={}, floor={}, missions={}, passengers={}, door={})",
+        debug!("ElevatorArrived(elevator={}, floor={}, missions={:?}, passengers={:?}, door={})",
               elevator,
               dest,
-              self.state.get(&elevator).unwrap().missions.len(),
-              self.state.get(&elevator).unwrap().passengers.len(),
-              self.state.get(&elevator).unwrap().door
+              state.missions,
+              state.passengers,
+              state.door
         );
+
+        state.floor = dest;
+        state.missions.pop_front().unwrap();
 
         let _ = self.to_elevators.send(OpenDoors(elevator.clone())).unwrap();
     }

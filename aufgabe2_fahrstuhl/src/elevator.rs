@@ -1,5 +1,4 @@
 use crate::controller::Floor;
-use std::thread;
 use log::{debug, info};
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
@@ -11,8 +10,7 @@ use crate::utils;
 
 pub enum ElevatorStatus {
     IdleIn(Floor),
-    MovingFromTo(Floor, Floor),
-    WaitingAt(Floor)
+    MovingFromTo(Floor, Floor)
 }
 
 #[derive(Clone)]
