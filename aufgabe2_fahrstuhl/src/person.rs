@@ -74,6 +74,25 @@ impl Person {
         }
     }
 
+    pub fn with(id: &str,
+               from_controller_to_persons: Receiver<ControllerToPersonsMsg>,
+               from_person_to_controller: Sender<PersonToControllerMsg>,
+                current_floor: Floor,
+                destination_floor: Floor) -> Self {
+        Person {
+            id: id.to_string(),
+            from_controller: from_controller_to_persons,
+            to_controller: from_person_to_controller,
+            state: PersonState {
+                has_requested_elevator: false,
+                status: PersonStatus::Idle,
+                current_floor,
+                destination_floor,
+                elevator: None
+            }
+        }
+    }
+
     pub fn init(mut self) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             self.request_elevator().await;
