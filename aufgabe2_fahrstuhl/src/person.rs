@@ -100,11 +100,12 @@ impl Person {
 
     pub async fn request_elevator(&mut self) {
         let _ = self.to_controller.send(PersonRequestElevator(self.state.current_floor)).await;
-        info!("RequestElevator({})", self.state);
+        info!("RequestElevator(person={}, floor={}, dest={})", self.id, self.state.current_floor, self.state.destination_floor);
     }
 
     async fn handle_elevator_halt(&mut self, elevator: String, floor: Floor) {
         if self.state.current_floor.eq(&floor) && self.state.status.eq(&PersonStatus::Idle) {
+            info!("PersonEnteredElevator(person={}, elevator={}, dest={})", self.id.clone(), elevator, self.state.destination_floor);
             self.state.status = PersonStatus::Entering;
             let _ = self.to_controller.send(PersonToControllerMsg::PersonEnteringElevator(self.id.clone(), elevator.clone())).await;
             delay(1);
@@ -114,9 +115,9 @@ impl Person {
             let _ = self.to_controller.send(PersonToControllerMsg::PersonChoosingFloor(self.id.clone(), elevator.clone(), self.state.destination_floor)).await;
         }
         if self.state.destination_floor.eq(&floor) {
+            info!("PersonLeavingElevator(person={}, elevator={})", self.id.clone(), elevator);
             self.leave_elevator(self.id.clone(), elevator).await;
         }
-        info!("ElevatorHalt({})", self.state);
     }
 
     async fn handle_elevator_departed(&mut self, elevator: String, floor: Floor) {
@@ -124,12 +125,13 @@ impl Person {
     }
 
     async fn handle_too_many_passengers(&mut self, person: String, elevator: String) {
-        self.leave_elevator(person, elevator).await;
-        info!("TooManyPassengers({})", self.state);
+        info!("TooManyPassengers(person={})", person);
+        self.leave_elevator(person.clone(), elevator).await;
     }
 
     async fn handle_update_boarding_status(&mut self, person: String, elevator: String, boarding_status: BoardingStatus) {
         if self.id.eq(&person) {
+            info!("BoardinAccepted(person={}, elevator={}, status={})", self.id.clone(), elevator, boarding_status);
             match boarding_status {
                 BoardingStatus::Accepted => {
                     self.state.status = PersonStatus::InElevator;
@@ -140,10 +142,10 @@ impl Person {
                 }
             }
         }
-        info!("UpdateBoardingStatus({})", self.state);
     }
 
     async fn leave_elevator(&mut self, person: String, elevator: String) {
+        info!("LeftElevator(person={}, elevator={})", self.id.clone(), elevator);
         self.state.elevator = None;
         self.state.status = Leaving;
         let _ = self.to_controller.send(PersonLeavingElevator(person.clone(), elevator.clone())).await;
