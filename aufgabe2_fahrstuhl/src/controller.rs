@@ -1,14 +1,15 @@
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
+use std::time::{Duration, Instant};
 use log::info;
 use tokio::select;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc::Receiver;
 use ControllerToElevatorsMsg::CloseDoors;
-use ControllerToPersonsMsg::TooManyPassengers;
+use ControllerToPersonsMsg::{TooManyPassengers};
 use crate::msg::{ControllerToElevatorsMsg, ControllerToPersonsMsg, ElevatorToControllerMsg, PersonToControllerMsg};
 use crate::msg::ControllerToElevatorsMsg::{ElevatorMission, OpenDoors};
-use crate::msg::ControllerToPersonsMsg::ElevatorHalt;
+use crate::msg::ControllerToPersonsMsg::{ElevatorDeparted, ElevatorHalt, UpdateBoardingStatus};
 use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
 use crate::msg::PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator, PersonLeavingElevator, PersonLeftElevator, PersonRequestElevator};
 
@@ -18,6 +19,12 @@ pub enum Floor {
     Ground,
     First,
     Second
+}
+
+#[derive(Clone)]
+pub enum BoardingStatus {
+    Accepted,
+    Rejected
 }
 
 #[derive(PartialEq, Debug)]
@@ -38,7 +45,7 @@ struct ElevatorState {
     id: String,
     floor: Floor,
     missions: VecDeque<Floor>,
-    passengers: usize,
+    passengers: Vec<String>,
     door: DoorStatus,
 }
 
@@ -54,15 +61,14 @@ impl Debug for Floor {
 
 impl Debug for ElevatorState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ElevatorState {{ id: {}, floor: {:?}, missions: {:?}, passengers: {}, door: {:?} }}",
+        write!(f, "ElevatorState {{ id: {}, floor: {:?}, missions: {:?}, passengers: {:?}, door: {:?} }}",
                self.id, self.floor, self.missions, self.passengers, self.door)
     }
 }
 
 impl Display for ElevatorState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ElevatorState {{ id: {}, floor: {:?}, missions: {:?}, passengers: {}, door: {:?} }}",
-               self.id, self.floor, self.missions, self.passengers, self.door)
+        std::fmt::Debug::fmt(self, f)
     }
 }
 
@@ -72,7 +78,7 @@ impl ElevatorState {
             id,
             floor: Floor::Ground,
             missions: VecDeque::new(),
-            passengers: 0,
+            passengers: Vec::new(),
             door: DoorStatus::Closed,
         }
     }
@@ -190,6 +196,11 @@ impl ElevatorController {
         state.door = DoorStatus::Open;
 
         let _ = self.to_persons.send(ElevatorHalt(elevator.clone(), state.floor));
+
+        if state.passengers.len() > 2 {
+            let person_to_leave = state.passengers.last().unwrap();
+            let _ = self.to_persons.send(TooManyPassengers(person_to_leave.clone(), elevator.clone()));
+        }
     }
 
     async fn handle_doors_closed(&mut self, elevator: String) {
@@ -198,14 +209,14 @@ impl ElevatorController {
         state.door = DoorStatus::Closed;
 
         if let Some(target) = state.missions.front() {
-            if state.passengers <= 2 {
+            if state.passengers.len() <= 2 {
                 let _ = self.to_elevators.send(ElevatorMission(elevator.clone(), *target));
             } else {
-                let _ = self.to_persons.send(TooManyPassengers(elevator.clone()));
+                let _ = self.to_elevators.send(OpenDoors(elevator.clone()));
             }
         }
 
-        let _ = self.to_persons.send(ElevatorHalt(elevator.clone(), state.floor));
+        let _ = self.to_persons.send(ElevatorDeparted(elevator.clone(), state.floor));
     }
 
     // Handler Methods von Person -> Controller
@@ -227,7 +238,13 @@ impl ElevatorController {
     async fn handle_person_entering_elevator(&mut self, person: String, elevator: String) {
         let state = self.state.get_mut(&elevator).unwrap();
 
-        state.passengers += 1;
+        state.passengers.push(person.clone());
+
+        if state.passengers.len() > 2 {
+            let _ = self.to_persons.send(UpdateBoardingStatus(person, elevator, BoardingStatus::Rejected));
+        } else {
+            let _ = self.to_persons.send(UpdateBoardingStatus(person, elevator, BoardingStatus::Accepted));
+        }
     }
 
     async fn handle_person_entered_elevator(&mut self, person: String, elevator: String) {
@@ -236,7 +253,7 @@ impl ElevatorController {
     async fn handle_person_leaving_elevator(&mut self, person: String, elevator: String) {
         let state = self.state.get_mut(&elevator).unwrap();
 
-        state.passengers -= 1;
+        state.passengers.retain(|x| x.ne(&person))
     }
 
     async fn handle_person_left_elevator(&mut self, person: String, elevator: String) {

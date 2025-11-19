@@ -4,8 +4,10 @@ use log::{debug, info};
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
 use ControllerToElevatorsMsg::{CloseDoors, ElevatorMission, OpenDoors};
+use utils::delay;
 use crate::msg::{ControllerToElevatorsMsg, ElevatorToControllerMsg};
 use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
+use crate::utils;
 
 pub enum ElevatorStatus {
     IdleIn(Floor),
@@ -72,7 +74,7 @@ impl Elevator {
         debug!("Elevator {}: Mission to {:?}", self.id, dest);
         self.state.status = ElevatorStatus::MovingFromTo(self.state.floor, dest);
         let _ = self.to_controller.send(ElevatorMoving(self.id.clone(), self.state.floor, dest)).await;
-        Self::delay(1);
+        delay(1);
         debug!("Elevator {}: Arrived at {:?}", self.id, dest);
         self.state.status = ElevatorStatus::IdleIn(dest);
         let _ = self.to_controller.send(ElevatorArrived(self.id.clone(), dest)).await;
@@ -82,7 +84,7 @@ impl Elevator {
         debug!("Elevator {}: Opening doors", self.id);
         self.state.doors_status = DoorStatus::Opening;
         let _ = self.to_controller.send(DoorsOpening(self.id.clone())).await;
-        Self::delay(1);
+        delay(1);
         debug!("Elevator {}: Doors opened", self.id);
         self.state.doors_status = DoorStatus::Open;
         let _ = self.to_controller.send(DoorsOpened(self.id.clone())).await;
@@ -92,14 +94,10 @@ impl Elevator {
         debug!("Elevator {}: Closing doors", self.id);
         self.state.doors_status = DoorStatus::Closing;
         let _ = self.to_controller.send(DoorsClosing(self.id.clone())).await;
-        Self::delay(1);
+        delay(1);
         debug!("Elevator {}: Doors closed", self.id);
         self.state.doors_status = DoorStatus::Closed;
         let _ = self.to_controller.send(DoorsClosed(self.id.clone())).await;
-    }
-
-    fn delay(ms: u64) {
-        thread::sleep(std::time::Duration::from_millis(ms));
     }
 }
 

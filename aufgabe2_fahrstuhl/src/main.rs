@@ -3,12 +3,15 @@ use crate::elevator::Elevator;
 use crate::logger::SimpleLogger;
 use log::LevelFilter;
 use tokio::sync::{broadcast, mpsc};
+use crate::person::Person;
+use crate::utils::delay;
 
 mod controller;
 mod elevator;
 mod msg;
 mod person;
 mod logger;
+mod utils;
 
 static LOGGER: SimpleLogger = SimpleLogger;
 
@@ -32,13 +35,29 @@ async fn main() {
         from_controller_to_persons_tx.clone(),
         vec!["Dorisch".to_string(), "Ionisch".to_string(), "Korinthisch".to_string()]
     );
+    let controller_handle = controller.init();
 
-    let threads = vec![
+
+
+    let mut threads = vec![
         Elevator::new("Dorisch", from_controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone()).init(),
         Elevator::new("Ionisch", from_controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone()).init(),
         Elevator::new("Korinthisch", from_controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone()).init(),
-        controller.init()
+        controller_handle,
     ];
+
+    delay(500);
+
+    threads.push(Person::new("Alice", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone()).init());
+    threads.push(Person::new("Bob", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone()).init());
+    threads.push(Person::new("Mallory", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone()).init());
+    //threads.push(Person::new("Carol", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone()).init());
+    //threads.push(Person::new("Charlie", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone()).init());
+    //threads.push(Person::new("Craig", from_controller_to_persons_tx.subscribe(), person_to_controller_tx.clone()).init());
+
+    delay(500);
+
+
 
     for _handle in threads {
         _handle.await.unwrap();
