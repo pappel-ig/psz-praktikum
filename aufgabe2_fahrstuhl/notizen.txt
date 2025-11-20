@@ -1,0 +1,2 @@
+Notizen für die Vorstellung:
+- Verlagerung des Problems: Bei zu vielen Nachrichten -> kaputt! endliche Kapazität im Channel!

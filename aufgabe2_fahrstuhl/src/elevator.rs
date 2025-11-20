@@ -1,19 +1,25 @@
 use crate::controller::Floor;
-use log::{debug, info, trace};
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
 use ControllerToElevatorsMsg::{CloseDoors, ElevatorMission, OpenDoors};
+use DoorStatus::{Closing, Opening};
+use ElevatorStatus::MovingFromTo;
+use Floor::Ground;
 use utils::delay;
+use crate::elevator::DoorStatus::{Closed, Open};
+use crate::elevator::ElevatorStatus::IdleIn;
 use crate::msg::{ControllerToElevatorsMsg, ElevatorToControllerMsg};
 use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
 use crate::utils;
 
+#[derive(PartialEq)]
 pub enum ElevatorStatus {
     IdleIn(Floor),
     MovingFromTo(Floor, Floor)
 }
 
 #[derive(Clone)]
+#[derive(PartialEq)]
 pub enum DoorStatus {
     Closed,
     Opening,
@@ -28,6 +34,7 @@ pub struct Elevator {
     state: ElevatorState,
 }
 
+#[derive(PartialEq)]
 struct ElevatorState {
     floor: Floor,
     status: ElevatorStatus,
@@ -39,16 +46,22 @@ impl Elevator {
         tokio::spawn(async move {
             loop {
                 if let Ok(msg) = self.from_controller.recv().await {
-                    trace!("{:?}", msg);
+
                     match msg {
                         ElevatorMission(elevator, dest) => {
-                            if self.id.eq(&elevator) { self.handle_mission(dest).await }
+                            if self.id.eq(&elevator) {
+                                self.handle_mission(dest).await
+                            }
                         }
                         OpenDoors(elevator) => {
-                            if self.id.eq(&elevator) { self.handle_open_doors().await }
+                            if self.id.eq(&elevator) {
+                                self.handle_open_doors().await
+                            }
                         }
                         CloseDoors(elevator) => {
-                            if self.id.eq(&elevator) { self.handle_close_doors().await }
+                            if self.id.eq(&elevator) {
+                                self.handle_close_doors().await
+                            }
                         }
                     }
                 }
@@ -62,41 +75,39 @@ impl Elevator {
             from_controller,
             to_controller,
             state: ElevatorState {
-                floor: Floor::Ground,
-                status: ElevatorStatus::IdleIn(Floor::Ground),
-                doors_status: DoorStatus::Closed,
+                floor: Ground,
+                status: IdleIn(Ground),
+                doors_status: Closed,
             }
         }
     }
 
     async fn handle_mission(&mut self, dest: Floor) {
-        debug!("Elevator {}: Mission to {:?}", self.id, dest);
-        self.state.status = ElevatorStatus::MovingFromTo(self.state.floor, dest);
+        self.state.status = MovingFromTo(self.state.floor, dest);
         let _ = self.to_controller.send(ElevatorMoving(self.id.clone(), self.state.floor, dest)).await;
         delay(1);
-        debug!("Elevator {}: Arrived at {:?}", self.id, dest);
-        self.state.status = ElevatorStatus::IdleIn(dest);
+        self.state.status = IdleIn(dest);
         let _ = self.to_controller.send(ElevatorArrived(self.id.clone(), dest)).await;
     }
 
     async fn handle_open_doors(&mut self) {
-        debug!("Elevator {}: Opening doors", self.id);
-        self.state.doors_status = DoorStatus::Opening;
-        let _ = self.to_controller.send(DoorsOpening(self.id.clone())).await;
-        delay(1);
-        debug!("Elevator {}: Doors opened", self.id);
-        self.state.doors_status = DoorStatus::Open;
-        let _ = self.to_controller.send(DoorsOpened(self.id.clone())).await;
+        if self.state.doors_status.eq(&Closed) {
+            self.state.doors_status = Opening;
+            let _ = self.to_controller.send(DoorsOpening(self.id.clone())).await;
+            delay(1);
+            self.state.doors_status = Open;
+            let _ = self.to_controller.send(DoorsOpened(self.id.clone())).await;
+        }
     }
 
     async fn handle_close_doors(&mut self) {
-        debug!("Elevator {}: Closing doors", self.id);
-        self.state.doors_status = DoorStatus::Closing;
-        let _ = self.to_controller.send(DoorsClosing(self.id.clone())).await;
-        delay(1);
-        debug!("Elevator {}: Doors closed", self.id);
-        self.state.doors_status = DoorStatus::Closed;
-        let _ = self.to_controller.send(DoorsClosed(self.id.clone())).await;
+        if self.state.doors_status.eq(&Open) {
+            self.state.doors_status = Closing;
+            let _ = self.to_controller.send(DoorsClosing(self.id.clone())).await;
+            delay(1);
+            self.state.doors_status = Closed;
+            let _ = self.to_controller.send(DoorsClosed(self.id.clone())).await;
+        }
     }
 }
 

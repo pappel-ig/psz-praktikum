@@ -14,9 +14,7 @@ pub enum PersonToControllerMsg {
 #[derive(Clone)]
 #[derive(Debug)]
 pub enum ControllerToPersonsMsg {
-    ElevatorDeparted(String, Floor),                        // Elevator ID, Floor
     ElevatorHalt(String, Floor),                            // Elevator ID, Floor
-    TooManyPassengers(String, String),                      // Person ID, Elevator ID
     UpdateBoardingStatus(String, String, BoardingStatus)    // Person ID, Elevator ID, Boarding Status
 }
 

@@ -7,16 +7,17 @@ use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc::Receiver;
 use tokio::task::JoinHandle;
 use ControllerToElevatorsMsg::CloseDoors;
-use ControllerToPersonsMsg::{TooManyPassengers};
 use utils::get_closing_task;
 use crate::msg::{ControllerToElevatorsMsg, ControllerToPersonsMsg, ElevatorToControllerMsg, PersonToControllerMsg};
 use crate::msg::ControllerToElevatorsMsg::{ElevatorMission, OpenDoors};
-use crate::msg::ControllerToPersonsMsg::{ElevatorDeparted, ElevatorHalt, UpdateBoardingStatus};
+use crate::msg::ControllerToPersonsMsg::{ElevatorHalt, UpdateBoardingStatus};
 use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
 use crate::msg::PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator, PersonLeavingElevator, PersonLeftElevator, PersonRequestElevator};
 use crate::utils;
 use rumqttc::{AsyncClient, QoS};
 use serde_json::json;
+use DoorStatus::Open;
+use crate::controller::DoorStatus::Closed;
 // NEU
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -45,12 +46,12 @@ pub struct ElevatorController {
     to_elevators: Sender<ControllerToElevatorsMsg>,
     to_persons: Sender<ControllerToPersonsMsg>,
     state: HashMap<String, ElevatorState>,
-    mqtt_client: AsyncClient,  // NEU
 }
 
 struct ElevatorState {
     id: String,
     floor: Floor,
+    mission: Option<Floor>,
     missions: VecDeque<Floor>,
     passengers: Vec<String>,
     door: DoorStatus,
@@ -77,8 +78,8 @@ impl Display for DoorStatus {
 
 impl Debug for ElevatorState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ElevatorState {{ id: {}, floor: {:?}, missions: {:?}, passengers: {:?}, door: {:?} }}",
-               self.id, self.floor, self.missions, self.passengers, self.door)
+        write!(f, "ElevatorState {{ id: {}, floor: {:?}, mission={:?}, missions: {:?}, passengers: {:?}, door: {:?} }}",
+               self.id, self.floor, self.mission, self.missions, self.passengers, self.door)
     }
 }
 
@@ -93,9 +94,10 @@ impl ElevatorState {
         ElevatorState {
             id,
             floor: Floor::Ground,
+            mission: None,
             missions: VecDeque::new(),
             passengers: Vec::new(),
-            door: DoorStatus::Closed,
+            door: Closed,
             closing_task: None
         }
     }
@@ -108,21 +110,6 @@ impl ElevatorController {
             loop {
                 select! {
                     Some(msg) = self.from_elevators.recv() => {
-                        info!("{:?}", msg);
-                        info!("{:?}", self.state);
-
-                        // MQTT Publishing für Elevator Events
-                        let json_msg = match &msg {
-                            ElevatorMoving(elevator, from, to) => json!({"elevator": elevator, "from": format!("{:?}", from), "to": format!("{:?}", to), "event": "ElevatorMoving"}),
-                            ElevatorArrived(elevator, floor) => json!({"elevator": elevator, "floor": format!("{:?}", floor), "event": "ElevatorArrived"}),
-                            DoorsOpening(elevator) => json!({"elevator": elevator, "event": "DoorsOpening"}),
-                            DoorsOpened(elevator) => json!({"elevator": elevator, "event": "DoorsOpened"}),
-                            DoorsClosing(elevator) => json!({"elevator": elevator, "event": "DoorsClosing"}),
-                            DoorsClosed(elevator) => json!({"elevator": elevator, "event": "DoorsClosed"}),
-                        };
-                        let _ = self.mqtt_client.publish("elevator/elevator_events", QoS::AtMostOnce, false, json_msg.to_string()).await;
-
-
                         match msg {
                             ElevatorMoving(elevator, from, to) => {
                                 self.handle_elevator_moving(elevator.clone(), from, to).await;
@@ -143,12 +130,11 @@ impl ElevatorController {
                                 self.handle_doors_closed(elevator.clone()).await;
                             }
                         }
+                        info!("{:?}", self.state);
                     }
                     Some(msg) = self.from_persons.recv() => {
                         info!("{:?}", msg);
-                        info!("{:?}", self.state);
 
-                         // Nur MQTT Publishing ändern - msg bleibt Debug
                         let json_msg = match &msg {
                             PersonRequestElevator(floor) => json!({"floor": format!("{:?}", floor), "event": "PersonRequestElevator"}),
                             PersonEnteringElevator(person, elevator) => json!({"person": person, "elevator": elevator, "event": "PersonEnteringElevator"}),
@@ -157,7 +143,6 @@ impl ElevatorController {
                             PersonLeavingElevator(person, elevator) => json!({"person": person, "elevator": elevator, "event": "PersonLeavingElevator"}),
                             PersonLeftElevator(person, elevator) => json!({"person": person, "elevator": elevator, "event": "PersonLeftElevator"}),
                         };
-                        let _ = self.mqtt_client.publish("elevator/person_events", QoS::AtMostOnce, false, json_msg.to_string()).await;
 
                         match msg {
                             PersonRequestElevator(floor) => {
@@ -179,6 +164,7 @@ impl ElevatorController {
                                 self.handle_person_choosing_floor(person, elevator.clone(), floor).await;
                             }
                         }
+                        info!("{:?}", self.state);
                     }
                 }
             }
@@ -189,8 +175,7 @@ impl ElevatorController {
                to_elevators: Sender<ControllerToElevatorsMsg>,
                from_persons: Receiver<PersonToControllerMsg>,
                to_persons: Sender<ControllerToPersonsMsg>,
-               elevators: Vec<String>,
-               mqtt_client: AsyncClient) -> Self {  // NEU: Parameter
+               elevators: Vec<String>) -> Self {
         let mut state = HashMap::new();
         for elevator in elevators {
             state.insert(elevator.clone(), ElevatorState::new(elevator.clone()));
@@ -201,9 +186,9 @@ impl ElevatorController {
             to_elevators,
             to_persons,
             state,
-            mqtt_client  // NEU
         }
     }
+    //
 
     async fn handle_elevator_moving(&mut self, elevator: String, from: Floor, to: Floor) {
     }
@@ -211,112 +196,43 @@ impl ElevatorController {
     async fn handle_elevator_arrived(&mut self, elevator: String, dest: Floor) {
         let state = self.state.get_mut(&elevator).unwrap();
 
-        if state.floor == dest {
-            return;
-        }
-
-        debug!("ElevatorArrived(elevator={}, floor={}, missions={:?}, passengers={:?}, door={})",
-              elevator,
-              dest,
-              state.missions,
-              state.passengers,
-              state.door
-        );
-
         state.floor = dest;
-        state.missions.pop_front().unwrap();
 
         let _ = self.to_elevators.send(OpenDoors(elevator.clone())).unwrap();
     }
 
     async fn handle_doors_opening(&mut self, elevator: String) {
+        let state = self.state.get_mut(&elevator).unwrap();
+
+        state.mission = None;
+        state.door = Open;
+
+        let _ = self.to_persons.send(ElevatorHalt(elevator.clone(), state.floor));
     }
 
     async fn handle_doors_closing(&mut self, elevator: String) {
+
     }
 
     async fn handle_doors_opened(&mut self, elevator: String) {
         let state = self.state.get_mut(&elevator).unwrap();
 
-        state.door = DoorStatus::Open;
-
-        debug!("DoorsOpened(elevator={}, floor={}, missions={}, passengers={}, door={})",
-              elevator,
-              state.floor,
-              state.missions.len(),
-              state.passengers.len(),
-              state.door
-        );
-
-        let _ = self.to_persons.send(ElevatorHalt(elevator.clone(), state.floor));
-
-        if state.passengers.len() > 2 {
-            let person_to_leave = state.passengers.last().unwrap();
-            let _ = self.to_persons.send(TooManyPassengers(person_to_leave.clone(), elevator.clone()));
-        }
-
-        let state_json = json!({
-        "elevator": &elevator,
-        "floor": format!("{:?}", state.floor),
-        "door": "Open",
-        "passengers": state.passengers.clone(),
-        "missions": state.missions.len()
-        });
-        let _ = self.mqtt_client.publish("elevator/state", QoS::AtMostOnce, false, state_json.to_string()).await;
-
-        state.closing_task = get_closing_task(self.to_elevators.clone(), elevator);
-
-
+        state.closing_task = get_closing_task(self.to_elevators.clone(), elevator.clone());
     }
 
     async fn handle_doors_closed(&mut self, elevator: String) {
         let state = self.state.get_mut(&elevator).unwrap();
 
-        state.door = DoorStatus::Closed;
+        state.door = Closed;
 
-        debug!("DoorsClosed(elevator={}, floor={}, missions={}, passengers={}, door={})",
-              elevator,
-              state.floor,
-              state.missions.len(),
-              state.passengers.len(),
-              state.door
-        );
-
-        if let Some(target) = state.missions.front() {
-            if state.passengers.len() <= 2 {
-                let _ = self.to_elevators.send(ElevatorMission(elevator.clone(), *target));
-                debug!("ElevatorMission(elevator={}, target={}, floor={}, missions={}, passengers={}, door={})",
-                    elevator,
-                    target,
-                    state.floor,
-                    state.missions.len(),
-                    state.passengers.len(),
-                    state.door
-                );
-            } else {
-                let _ = self.to_elevators.send(OpenDoors(elevator.clone()));
-                debug!("TooManyPeopleInElevator(elevator={}, target={}, floor={}, missions={}, passengers={}, door={})",
-                    elevator,
-                    target,
-                    state.floor,
-                    state.missions.len(),
-                    state.passengers.len(),
-                    state.door
-                );
-            }
+        if let Some(task) = state.closing_task.take() {
+            task.abort();
         }
 
-        let _ = self.to_persons.send(ElevatorDeparted(elevator.clone(), state.floor));
-
-        let state_json = json!({
-        "elevator": &elevator,
-        "floor": format!("{:?}", state.floor),
-        "door": "Closed",
-        "passengers": state.passengers.clone(),
-        "missions": state.missions.len()
-        });
-        let _ = self.mqtt_client.publish("elevator/state", QoS::AtMostOnce, false, state_json.to_string()).await;
-
+        if let Some(next_floor) = state.missions.pop_front() {
+            state.mission = Some(next_floor);
+            let _ = self.to_elevators.send(ElevatorMission(elevator.clone(), next_floor));
+        }
     }
 
     async fn handle_person_request_elevator(&mut self, target: Floor) {
@@ -324,49 +240,37 @@ impl ElevatorController {
         values.sort_by_key(|x| { x.missions.len() });
         let elevator = values.first_mut().unwrap();
 
-        if (elevator.door == DoorStatus::Closed) && (elevator.floor == target) {
-            let _ = self.to_elevators.send(OpenDoors(elevator.id.clone()));
-        } else if elevator.door == DoorStatus::Closed {
-            elevator.missions.push_back(target);
+        if elevator.mission.is_none() && elevator.missions.is_empty() {
+            elevator.mission = Some(target);
             let _ = self.to_elevators.send(ElevatorMission(elevator.id.clone(), target));
-        } else {
+        } else if !elevator.missions.contains(&target) {
             elevator.missions.push_back(target);
         }
-        debug!("PersonRequestElevator(target={}, assigned_elevator={}, floor={}, missions={:?}, passengers={:?}, door={})",
-              target,
-              elevator.id,
-              elevator.floor,
-              elevator.missions,
-              elevator.passengers,
-              elevator.door
-        );
     }
 
     async fn handle_person_entering_elevator(&mut self, person: String, elevator: String) {
-        let state = self.state.get_mut(&elevator).unwrap();
 
-        state.passengers.push(person.clone());
-
-        if state.passengers.len() > 2 {
-            debug!("Rejected(person={}, elevator={})", person, elevator);
-            let _ = self.to_persons.send(UpdateBoardingStatus(person, elevator, BoardingStatus::Rejected));
-        } else {
-            debug!("Accepted(person={}, elevator={})", person, elevator);
-            let _ = self.to_persons.send(UpdateBoardingStatus(person, elevator, BoardingStatus::Accepted));
-        }
     }
 
     async fn handle_person_entered_elevator(&mut self, person: String, elevator: String) {
+        let state = self.state.get_mut(&elevator).unwrap();
+
+        if state.passengers.len() < 2 {
+            state.passengers.push(person.clone());
+            let _ = self.to_persons.send(UpdateBoardingStatus(person, elevator, BoardingStatus::Accepted));
+        } else {
+            let _ = self.to_persons.send(UpdateBoardingStatus(person, elevator, BoardingStatus::Rejected));
+        }
     }
 
     async fn handle_person_leaving_elevator(&mut self, person: String, elevator: String) {
-        let state = self.state.get_mut(&elevator).unwrap();
 
-        state.passengers.retain(|x| x.ne(&person));
-        debug!("LeftElevator(person={}, elevator={})", person, elevator);
     }
 
     async fn handle_person_left_elevator(&mut self, person: String, elevator: String) {
+        let state = self.state.get_mut(&elevator).unwrap();
+
+        state.passengers.retain(|x| { x.ne(&person) });
     }
 
     async fn handle_person_choosing_floor(&mut self, person: String, elevator: String, dest: Floor) {
@@ -376,11 +280,6 @@ impl ElevatorController {
             state.missions.push_back(dest);
         }
 
-        debug!("PersonChooseFloor(person={}, elevator={}, missions={:?})", person, elevator, state.missions);
-
-        if state.door == DoorStatus::Open {
-            debug!("ClosingDoor(person={}, elevator={}, missions={:?})", person, elevator, state.missions);
-            let _ = self.to_elevators.send(CloseDoors(elevator.clone()));
-        }
+        let _ = self.to_elevators.send(CloseDoors(elevator));
     }
 }
