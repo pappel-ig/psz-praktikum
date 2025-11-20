@@ -15,12 +15,16 @@ use crate::msg::ControllerToPersonsMsg::{ElevatorDeparted, ElevatorHalt, UpdateB
 use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
 use crate::msg::PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator, PersonLeavingElevator, PersonLeftElevator, PersonRequestElevator};
 use crate::utils;
+use rumqttc::{AsyncClient, QoS};
+use serde_json::json;
+// NEU
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Floor {
     Ground,
     First,
-    Second
+    Second,
+    Third
 }
 
 #[derive(Clone, Debug)]
@@ -41,6 +45,7 @@ pub struct ElevatorController {
     to_elevators: Sender<ControllerToElevatorsMsg>,
     to_persons: Sender<ControllerToPersonsMsg>,
     state: HashMap<String, ElevatorState>,
+    mqtt_client: AsyncClient,  // NEU
 }
 
 struct ElevatorState {
@@ -105,6 +110,19 @@ impl ElevatorController {
                     Some(msg) = self.from_elevators.recv() => {
                         info!("{:?}", msg);
                         info!("{:?}", self.state);
+
+                        // MQTT Publishing für Elevator Events
+                        let json_msg = match &msg {
+                            ElevatorMoving(elevator, from, to) => json!({"elevator": elevator, "from": format!("{:?}", from), "to": format!("{:?}", to), "event": "ElevatorMoving"}),
+                            ElevatorArrived(elevator, floor) => json!({"elevator": elevator, "floor": format!("{:?}", floor), "event": "ElevatorArrived"}),
+                            DoorsOpening(elevator) => json!({"elevator": elevator, "event": "DoorsOpening"}),
+                            DoorsOpened(elevator) => json!({"elevator": elevator, "event": "DoorsOpened"}),
+                            DoorsClosing(elevator) => json!({"elevator": elevator, "event": "DoorsClosing"}),
+                            DoorsClosed(elevator) => json!({"elevator": elevator, "event": "DoorsClosed"}),
+                        };
+                        let _ = self.mqtt_client.publish("elevator/elevator_events", QoS::AtMostOnce, false, json_msg.to_string()).await;
+
+
                         match msg {
                             ElevatorMoving(elevator, from, to) => {
                                 self.handle_elevator_moving(elevator.clone(), from, to).await;
@@ -129,6 +147,18 @@ impl ElevatorController {
                     Some(msg) = self.from_persons.recv() => {
                         info!("{:?}", msg);
                         info!("{:?}", self.state);
+
+                         // Nur MQTT Publishing ändern - msg bleibt Debug
+                        let json_msg = match &msg {
+                            PersonRequestElevator(floor) => json!({"floor": format!("{:?}", floor), "event": "PersonRequestElevator"}),
+                            PersonEnteringElevator(person, elevator) => json!({"person": person, "elevator": elevator, "event": "PersonEnteringElevator"}),
+                            PersonEnteredElevator(person, elevator) => json!({"person": person, "elevator": elevator, "event": "PersonEnteredElevator"}),
+                            PersonChoosingFloor(person, elevator, floor) => json!({"person": person, "elevator": elevator, "floor": format!("{:?}", floor), "event": "PersonChoosingFloor"}),
+                            PersonLeavingElevator(person, elevator) => json!({"person": person, "elevator": elevator, "event": "PersonLeavingElevator"}),
+                            PersonLeftElevator(person, elevator) => json!({"person": person, "elevator": elevator, "event": "PersonLeftElevator"}),
+                        };
+                        let _ = self.mqtt_client.publish("elevator/person_events", QoS::AtMostOnce, false, json_msg.to_string()).await;
+
                         match msg {
                             PersonRequestElevator(floor) => {
                                 self.handle_person_request_elevator(floor).await;
@@ -159,7 +189,8 @@ impl ElevatorController {
                to_elevators: Sender<ControllerToElevatorsMsg>,
                from_persons: Receiver<PersonToControllerMsg>,
                to_persons: Sender<ControllerToPersonsMsg>,
-               elevators: Vec<String>) -> Self {
+               elevators: Vec<String>,
+               mqtt_client: AsyncClient) -> Self {  // NEU: Parameter
         let mut state = HashMap::new();
         for elevator in elevators {
             state.insert(elevator.clone(), ElevatorState::new(elevator.clone()));
@@ -169,11 +200,11 @@ impl ElevatorController {
             from_persons,
             to_elevators,
             to_persons,
-            state
+            state,
+            mqtt_client  // NEU
         }
     }
 
-    // Handler Methods von Elevator -> Controller
     async fn handle_elevator_moving(&mut self, elevator: String, from: Floor, to: Floor) {
     }
 
@@ -224,7 +255,18 @@ impl ElevatorController {
             let _ = self.to_persons.send(TooManyPassengers(person_to_leave.clone(), elevator.clone()));
         }
 
+        let state_json = json!({
+        "elevator": &elevator,
+        "floor": format!("{:?}", state.floor),
+        "door": "Open",
+        "passengers": state.passengers.clone(),
+        "missions": state.missions.len()
+        });
+        let _ = self.mqtt_client.publish("elevator/state", QoS::AtMostOnce, false, state_json.to_string()).await;
+
         state.closing_task = get_closing_task(self.to_elevators.clone(), elevator);
+
+
     }
 
     async fn handle_doors_closed(&mut self, elevator: String) {
@@ -265,9 +307,18 @@ impl ElevatorController {
         }
 
         let _ = self.to_persons.send(ElevatorDeparted(elevator.clone(), state.floor));
+
+        let state_json = json!({
+        "elevator": &elevator,
+        "floor": format!("{:?}", state.floor),
+        "door": "Closed",
+        "passengers": state.passengers.clone(),
+        "missions": state.missions.len()
+        });
+        let _ = self.mqtt_client.publish("elevator/state", QoS::AtMostOnce, false, state_json.to_string()).await;
+
     }
 
-    // Handler Methods von Person -> Controller
     async fn handle_person_request_elevator(&mut self, target: Floor) {
         let mut values: Vec<&mut ElevatorState> = self.state.values_mut().collect();
         values.sort_by_key(|x| { x.missions.len() });

@@ -177,7 +177,7 @@ impl Person {
 
     fn pick_two_distinct_floors() -> (Floor, Floor) {
         let mut rng = rng();
-        let mut floors = vec![Floor::Ground, Floor::First, Floor::Second];
+        let mut floors = vec![Floor::Ground, Floor::First, Floor::Second, Floor::Third];
         floors.shuffle(&mut rng);
         (floors[0], floors[1])
     }
