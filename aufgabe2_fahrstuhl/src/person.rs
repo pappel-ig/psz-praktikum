@@ -33,6 +33,7 @@ pub struct Person {
     pub id: String,
     from_controller: Receiver<ControllerToPersonsMsg>,
     to_controller: Sender<PersonToControllerMsg>,
+    to_mqtt: Sender<crate::mqtt::Send>,
     state: PersonState
 }
 
@@ -65,12 +66,14 @@ impl Debug for Person {
 impl Person {
     pub fn new(id: &str,
                from_controller_to_persons: Receiver<ControllerToPersonsMsg>,
-               from_person_to_controller: Sender<PersonToControllerMsg>) -> Self {
+               from_person_to_controller: Sender<PersonToControllerMsg>,
+               to_mqtt: Sender<crate::mqtt::Send>) -> Self {
         let (current_floor, destination_floor) = Self::pick_two_distinct_floors();
         Person {
             id: id.to_string(),
             from_controller: from_controller_to_persons,
             to_controller: from_person_to_controller,
+            to_mqtt,
             state: PersonState {
                 status: Idle,
                 current_floor,
@@ -81,14 +84,16 @@ impl Person {
     }
 
     pub fn with(id: &str,
-               from_controller_to_persons: Receiver<ControllerToPersonsMsg>,
-               from_person_to_controller: Sender<PersonToControllerMsg>,
+                from_controller_to_persons: Receiver<ControllerToPersonsMsg>,
+                from_person_to_controller: Sender<PersonToControllerMsg>,
+                to_mqtt: Sender<crate::mqtt::Send>,
                 current_floor: Floor,
                 destination_floor: Floor) -> Self {
         Person {
             id: id.to_string(),
             from_controller: from_controller_to_persons,
             to_controller: from_person_to_controller,
+            to_mqtt,
             state: PersonState {
                 status: Idle,
                 current_floor,

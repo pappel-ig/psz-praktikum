@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::time::{Duration, Instant};
 use log::{debug, info, trace};
 use serde::{Deserialize, Serialize};
-use tokio::select;
+use tokio::{select, sync};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc::Receiver;
 use tokio::task::JoinHandle;
@@ -16,6 +16,7 @@ use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened
 use crate::msg::PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator, PersonLeavingElevator, PersonLeftElevator, PersonRequestElevator};
 use crate::utils;
 use serde_json::json;
+use sync::mpsc;
 use DoorStatus::Open;
 use crate::controller::DoorStatus::Closed;
 // NEU
@@ -45,6 +46,7 @@ pub struct ElevatorController {
     from_persons: Receiver<PersonToControllerMsg>,
     to_elevators: Sender<ControllerToElevatorsMsg>,
     to_persons: Sender<ControllerToPersonsMsg>,
+    to_mqtt: mpsc::Sender<crate::mqtt::Send>,
     state: HashMap<String, ElevatorState>,
 }
 
@@ -175,6 +177,7 @@ impl ElevatorController {
                to_elevators: Sender<ControllerToElevatorsMsg>,
                from_persons: Receiver<PersonToControllerMsg>,
                to_persons: Sender<ControllerToPersonsMsg>,
+               to_mqtt: mpsc::Sender<crate::mqtt::Send>,
                elevators: Vec<String>) -> Self {
         let mut state = HashMap::new();
         for elevator in elevators {
@@ -185,6 +188,7 @@ impl ElevatorController {
             from_persons,
             to_elevators,
             to_persons,
+            to_mqtt,
             state,
         }
     }

@@ -34,6 +34,7 @@ pub struct Elevator {
     from_controller: Receiver<ControllerToElevatorsMsg>,
     to_controller: Sender<ElevatorToControllerMsg>,
     state: ElevatorState,
+    pub to_mqtt: Sender<crate::mqtt::Send>,
 }
 
 #[derive(PartialEq)]
@@ -71,11 +72,12 @@ impl Elevator {
         })
     }
 
-    pub fn new(id: &str, from_controller: Receiver<ControllerToElevatorsMsg>, to_controller: Sender<ElevatorToControllerMsg>) -> Self {
+    pub fn new(id: &str, from_controller: Receiver<ControllerToElevatorsMsg>, to_controller: Sender<ElevatorToControllerMsg>, to_mqtt: Sender<crate::mqtt::Send>) -> Self {
         Elevator {
             id: id.to_string(),
             from_controller,
             to_controller,
+            to_mqtt,
             state: ElevatorState {
                 floor: Ground,
                 status: IdleIn(Ground),

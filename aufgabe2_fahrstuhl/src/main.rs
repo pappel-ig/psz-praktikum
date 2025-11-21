@@ -40,6 +40,7 @@ async fn main() {
         controller_to_elevators_tx.clone(),
         person_to_controller_rx,
         controller_to_persons_tx.clone(),
+        to_mqtt_tx.clone(),
         vec!["Dorisch".to_string(), "Ionisch".to_string(), "Korinthisch".to_string()]
     );
     let controller_handle = controller.init();
@@ -49,9 +50,9 @@ async fn main() {
     let mut threads = vec![
         mqtt.mqtt_subscriber(),
         mqtt.mqtt_publisher(),
-        Elevator::new("Dorisch", controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone()).init(),
-        Elevator::new("Ionisch", controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone()).init(),
-        Elevator::new("Korinthisch", controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone()).init(),
+        Elevator::new("Dorisch", controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone(), to_mqtt_tx.clone()).init(),
+        Elevator::new("Ionisch", controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone(), to_mqtt_tx.clone()).init(),
+        Elevator::new("Korinthisch", controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone(), to_mqtt_tx.clone()).init(),
         controller_handle,
     ];
 
@@ -88,6 +89,7 @@ async fn main() {
                         &id,
                         controller_to_persons_tx.subscribe(),
                         person_to_controller_tx.clone(),
+                        to_mqtt_tx.clone(),
                         current_floor,
                         destination_floor
                     );
