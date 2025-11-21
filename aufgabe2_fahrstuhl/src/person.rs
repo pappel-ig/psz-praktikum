@@ -1,5 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use log::{debug, info, trace};
+use rand::rng;
+use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use task::JoinHandle;
 use tokio::sync::broadcast::Receiver;
@@ -11,6 +13,7 @@ use PersonMsg::StatusUpdate;
 use PersonStatus::{Done, Entering, Idle, InElevator};
 use PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator};
 use crate::controller::{BoardingStatus, Floor};
+use crate::controller::Floor::{First, Ground, Second, Third};
 use crate::mqtt::PersonMsg;
 use crate::mqtt::PersonMsg::{Boarding, Request};
 use crate::mqtt::Send::{PersonTopic};
@@ -65,6 +68,25 @@ impl Debug for Person {
 }
 
 impl Person {
+    pub fn new(id: &str,
+               from_controller_to_persons: Receiver<ControllerToPersonsMsg>,
+               from_person_to_controller: Sender<PersonToControllerMsg>,
+               to_mqtt: Sender<crate::mqtt::Send>) -> Self {
+        let (current_floor, destination_floor) = Self::pick_two_distinct_floors();
+        Person {
+            id: id.to_string(),
+            from_controller: from_controller_to_persons,
+            to_controller: from_person_to_controller,
+            to_mqtt,
+            state: PersonState {
+                status: Idle,
+                current_floor,
+                destination_floor,
+                elevator: None
+            }
+        }
+    }
+
     pub fn with(id: &str,
                 from_controller_to_persons: Receiver<ControllerToPersonsMsg>,
                 from_person_to_controller: Sender<PersonToControllerMsg>,
@@ -120,7 +142,7 @@ impl Person {
             self.state.status = Entering;
             self.status().await;
             let _ = self.to_controller.send(PersonEnteringElevator(self.id.clone(), elevator.clone())).await;
-            delay(1);
+            delay(500);
             let _ = self.to_controller.send(PersonEnteredElevator(self.id.clone(), elevator.clone())).await;
         }
         if self.state.destination_floor.eq(&floor) && self.state.status.eq(&InElevator) && self.state.elevator.eq(&Some(elevator.clone())) {
@@ -143,7 +165,7 @@ impl Person {
                 }
                 Rejected => {
                     self.leave_elevator(person, elevator).await;
-                    delay(1);
+                    delay(1500);
                     let _ = self.to_controller.send(PersonRequestElevator(self.state.current_floor)).await;
                 }
             }
@@ -155,11 +177,10 @@ impl Person {
         self.state.status = Leaving;
         self.status().await;
         let _ = self.to_controller.send(PersonLeavingElevator(person.clone(), elevator.clone())).await;
-        delay(1);
+        delay(500);
         self.state.status = Idle;
         self.status().await;
         let _ = self.to_controller.send(PersonLeftElevator(person, elevator.clone())).await;
-        delay(1);
     }
 
     // MQTT-Updates
@@ -192,6 +213,15 @@ impl Person {
             },
         };
         let _ = self.to_mqtt.send(msg).await;
+    }
+
+    // Other Methods
+
+    fn pick_two_distinct_floors() -> (Floor, Floor) {
+        let mut rng = rng();
+        let mut floors = vec![Ground, First, Second, Third];
+        floors.shuffle(&mut rng);
+        (floors[0], floors[1])
     }
 }
 

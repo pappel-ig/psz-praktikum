@@ -55,6 +55,16 @@ async fn main() {
         controller_handle,
     ];
 
+    for i in 0..1000 {
+        let person_id = format!("Person_{}", i);
+        threads.push(Person::new(
+            &person_id,
+            controller_to_persons_tx.subscribe(),
+            person_to_controller_tx.clone(),
+            to_mqtt_tx.clone()
+        ).init());
+    }
+
     loop {
         if let Some(msg) = mqtt_to_person_rx.recv().await {
             match msg {

@@ -93,7 +93,7 @@ impl Elevator {
     async fn handle_mission(&mut self, dest: Floor) {
         self.state.status = MovingFromTo(self.state.floor, dest);
         let _ = self.to_controller.send(ElevatorMoving(self.id.clone(), self.state.floor, dest)).await;
-        delay(1);
+        delay(3000);
         self.state.status = IdleIn(dest);
         self.position().await;
         let _ = self.to_controller.send(ElevatorArrived(self.id.clone(), dest)).await;
@@ -105,7 +105,7 @@ impl Elevator {
             self.state.doors_status = Opening;
             self.door().await;
             let _ = self.to_controller.send(DoorsOpening(self.id.clone())).await;
-            delay(1);
+            delay(1500);
             self.state.doors_status = Open;
             self.door().await;
             let _ = self.to_controller.send(DoorsOpened(self.id.clone())).await;
@@ -117,7 +117,7 @@ impl Elevator {
             self.state.doors_status = Closing;
             self.door().await;
             let _ = self.to_controller.send(DoorsClosing(self.id.clone())).await;
-            delay(1);
+            delay(1500);
             self.state.doors_status = Closed;
             self.door().await;
             let _ = self.to_controller.send(DoorsClosed(self.id.clone())).await;
