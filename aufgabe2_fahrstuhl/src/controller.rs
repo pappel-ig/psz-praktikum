@@ -1,7 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
-use std::time::{Duration, Instant};
-use log::{debug, info, trace};
+use log::{info, trace};
 use serde::{Deserialize, Serialize};
 use tokio::{select, sync};
 use tokio::sync::broadcast::Sender;
@@ -19,9 +18,8 @@ use serde_json::json;
 use sync::mpsc;
 use DoorStatus::Open;
 use crate::controller::DoorStatus::Closed;
-use crate::mqtt::ElevatorMsg::{Door, Missions, Moving, Passengers, Request};
+use crate::mqtt::ElevatorMsg::{Missions, Moving, Passengers};
 use crate::mqtt::Send::ElevatorTopic;
-// NEU
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Floor {
@@ -320,17 +318,6 @@ impl ElevatorController {
             id: elevator,
             msg: Passengers {
                 passengers
-            },
-        };
-        let _ = &self.to_mqtt.send(msg).await;
-    }
-
-
-    async fn request(&self, elevator: String, floor: Floor) {
-        let msg = ElevatorTopic {
-            id: elevator,
-            msg: Request {
-                floor
             },
         };
         let _ = &self.to_mqtt.send(msg).await;

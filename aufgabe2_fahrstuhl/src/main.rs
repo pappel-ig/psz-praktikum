@@ -1,12 +1,11 @@
 use crate::controller::ElevatorController;
 use crate::elevator::Elevator;
 use crate::logger::SimpleLogger;
-use crate::person::{Person, PersonStatus};
-use crate::utils::delay;
-use log::{LevelFilter};
-use tokio::sync::{broadcast, mpsc};
+use crate::mqtt::Receive;
+use crate::person::Person;
+use log::LevelFilter;
 use mqtt::MqttConnector;
-use crate::mqtt::{PersonMsg, Receive};
+use tokio::sync::{broadcast, mpsc};
 
 mod controller;
 mod elevator;
@@ -55,31 +54,6 @@ async fn main() {
         Elevator::new("Korinthisch", controller_to_elevators_tx.subscribe(), elevator_to_controller_tx.clone(), to_mqtt_tx.clone()).init(),
         controller_handle,
     ];
-
-    delay(500);
-
-    //let _ = to_mqtt_tx.send(PersonTopic {
-    //    id: "2".to_string(),
-    //    msg: PersonMsg::StatusUpdate {
-    //        status: PersonStatus::Idle,
-    //    }
-    //}).await;
-    //
-    //let _ = to_mqtt_tx.send(ElevatorTopic {
-    //    id: "Blub".to_string(),
-    //    msg: Position {
-    //        floor: First
-    //    }
-    //}).await;
-
-    //for i in 0..1000 {
-    //    let person_id = format!("Person_{}", i);
-    //    threads.push(Person::new(
-    //        &person_id,
-    //        controller_to_persons_tx.subscribe(),
-    //        person_to_controller_tx.clone()
-    //    ).init());
-    //}
 
     loop {
         if let Some(msg) = mqtt_to_person_rx.recv().await {

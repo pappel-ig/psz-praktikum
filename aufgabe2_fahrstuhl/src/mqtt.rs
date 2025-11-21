@@ -7,7 +7,8 @@ use PersonMsg::{Boarding, StatusUpdate};
 use Send::{ElevatorTopic, PersonTopic};
 use crate::controller::{BoardingStatus, Floor};
 use crate::elevator::DoorStatus;
-use crate::mqtt::ElevatorMsg::{Door, Missions, Moving, Passengers, Request};
+use crate::mqtt::ElevatorMsg::{Door, Missions, Moving, Passengers};
+use crate::mqtt::PersonMsg::Request;
 use crate::person::PersonStatus;
 
 pub enum Send {
@@ -28,7 +29,6 @@ pub enum ElevatorMsg {
     Door { status: DoorStatus },
     Moving { from: Floor, to: Floor },
     Passengers { passengers: Vec<String> },
-    Request { floor: Floor },
     Missions { missions: Vec<Floor> }
 }
 
@@ -36,7 +36,8 @@ pub enum ElevatorMsg {
 #[serde(untagged)]
 pub enum PersonMsg {
     StatusUpdate { status: PersonStatus },
-    Boarding { status: BoardingStatus }
+    Boarding { status: BoardingStatus },
+    Request { floor: Floor },
     // ...
 }
 
@@ -104,9 +105,6 @@ impl MqttConnector {
                                 Passengers { .. } => {
                                     let _ = client.publish(Message::new(format!("elevator/{}/passengers", id), serde_json::to_string(&msg).unwrap(), 1)).await;
                                 },
-                                Request { .. } => {
-                                    let _ = client.publish(Message::new(format!("elevator/{}/request", id), serde_json::to_string(&msg).unwrap(), 1)).await;
-                                },
                                 Missions { .. } => {
                                     let _ = client.publish(Message::new(format!("elevator/{}/missions", id), serde_json::to_string(&msg).unwrap(), 1)).await;
                                 },
@@ -119,6 +117,9 @@ impl MqttConnector {
                                 },
                                 Boarding { .. } => {
                                     let _ = client.publish(Message::new(format!("person/{}/boarding", id), serde_json::to_string(&msg).unwrap(), 1)).await;
+                                }
+                                Request { .. } => {
+                                    let _ = client.publish(Message::new(format!("person/{}/request", id), serde_json::to_string(&msg).unwrap(), 1)).await;
                                 }
                             }
                         }

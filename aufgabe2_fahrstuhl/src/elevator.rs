@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use crate::controller::Floor;
 use crate::elevator::DoorStatus::{Closed, Open};
 use crate::elevator::ElevatorStatus::IdleIn;
@@ -7,6 +6,7 @@ use crate::mqtt::Send::ElevatorTopic;
 use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
 use crate::msg::{ControllerToElevatorsMsg, ElevatorToControllerMsg};
 use crate::utils;
+use serde::{Deserialize, Serialize};
 use task::JoinHandle;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
