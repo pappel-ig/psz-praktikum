@@ -1,74 +1,100 @@
-use std::sync::mpsc::Receiver;
-use paho_mqtt::{AsyncClient, ConnectOptions, Token};
-use tokio::sync::mpsc::Sender;
+use paho_mqtt::{AsyncClient, ConnectOptions, Message, Token};
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
-use serde::{Deserialize, Deserializer};
+use ElevatorMsg::Position;
+use PersonMsg::StatusUpdate;
+use Send::{ElevatorTopic, PersonTopic};
 use crate::controller::Floor;
-use crate::mqtt::Receive::Person;
+use crate::person::PersonStatus;
 
 pub enum Send {
-    Elevator {
+    ElevatorTopic {
         id: String,
         msg: ElevatorMsg
     },
-    Person {
+    PersonTopic {
         id: String,
         msg: PersonMsg
     }
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum ElevatorMsg {
-    Position(Floor),
+    Position { floor: Floor },
     // ...
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum PersonMsg {
-    Done,
+    StatusUpdate { status: PersonStatus },
     // ...
 }
 
-enum Receive {
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum Receive {
     Person {
         id: String,
-        current_floor: Floor,
-        destination_floor: Floor,
-    }
-}
-
-impl Deserialize for Receive {
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>
-    {
-        deserializer.des
+        curr: Floor,
+        dest: Floor,
     }
 }
 
 pub struct MqttConnector {
     from: Receiver<Send>,
-    to: Sender<Send>,
+    to: Sender<Receive>,
     client: AsyncClient,
-    token: Token
 }
 
 impl MqttConnector {
-    pub fn init(mut self) -> JoinHandle<()> {
+
+    pub async fn new(from: Receiver<Send>, to: Sender<Receive>) -> Self {
+        let client = AsyncClient::new("mqtt://localhost:1883").unwrap();
+        let _ = client.connect(ConnectOptions::new()).await;
+        MqttConnector {
+            from,
+            to,
+            client,
+        }
+    }
+
+    pub fn mqtt_subscriber(&self) -> JoinHandle<()> {
+        let mut client = self.client.clone();
+        let to = self.to.clone();
         tokio::spawn(async move {
+            client.subscribe("person/introduce", 1).await.unwrap();
+            let receiver = client.get_stream(100);
+            loop {
+                if let Ok(Some(msg)) = receiver.recv().await {
+                    if let Some(receive) = MqttConnector::parse(&msg) {
+                        let _ = to.send(receive).await;
+                    }
+                }
+            }
+        })
+    }
 
-            self.client.subscribe("person/+/introduce", 1);
-            for msg in self.client.start_consuming() {
-                if let Some(msg) = msg {
-                    let payload = msg.payload_str();
-                    msg.
-
-                    if let Ok(receive_msg) = serde_json::from_str::<Receive>(&payload) {
-                        match receive_msg {
-                            Person { id, current_floor, destination_floor } => {
-                                let send_msg = Send::Person {
-                                    id,
-                                    msg: PersonMsg::Done // Example message
-                                };
-                                self.to.send(send_msg).await.unwrap();
+    pub fn mqtt_publisher(mut self) -> JoinHandle<()> {
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            loop {
+                if let Some(send) = self.from.recv().await {
+                    match send {
+                        ElevatorTopic { id, msg } => {
+                            match msg {
+                                Position { .. } => {
+                                    let _ = client.publish(Message::new(format!("elevator/{}/position", id), serde_json::to_string(&msg).unwrap(), 1)).await;
+                                },
+                            }
+                        }
+                        PersonTopic { id, msg } => {
+                            match msg {
+                                StatusUpdate { .. } => {
+                                    let _ = client.publish(Message::new(format!("person/{}/status", id), serde_json::to_string(&msg).unwrap(), 1)).await;
+                                }
                             }
                         }
                     }
@@ -77,14 +103,8 @@ impl MqttConnector {
         })
     }
 
-    pub fn new(from: Receiver<Send>, to: Sender<Send>) -> Self {
-        let client = AsyncClient::new("mqtt://localhost:1883").unwrap();
-        let token = client.connect(ConnectOptions::new());
-        MqttConnector {
-            from,
-            to,
-            client,
-            token
-        }
+    fn parse(msg: &Message) -> Option<Receive> {
+        let payload = msg.payload();
+        serde_json::from_slice(payload).ok()
     }
 }

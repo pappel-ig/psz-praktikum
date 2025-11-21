@@ -2,6 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 use log::{debug, error, info, trace};
 use rand::prelude::SliceRandom;
 use rand::rng;
+use serde::{Deserialize, Serialize};
 use task::JoinHandle;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
@@ -18,7 +19,7 @@ use crate::msg::PersonToControllerMsg::{PersonLeavingElevator, PersonLeftElevato
 use crate::person::PersonStatus::Leaving;
 use crate::utils::delay;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum PersonStatus {
     Idle,
     Entering,

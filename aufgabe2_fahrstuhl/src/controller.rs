@@ -2,6 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 use std::time::{Duration, Instant};
 use log::{debug, info, trace};
+use serde::{Deserialize, Serialize};
 use tokio::select;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc::Receiver;
@@ -19,7 +20,7 @@ use DoorStatus::Open;
 use crate::controller::DoorStatus::Closed;
 // NEU
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Floor {
     Ground,
     First,

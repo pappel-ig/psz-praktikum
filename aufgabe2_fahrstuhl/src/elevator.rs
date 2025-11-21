@@ -1,6 +1,8 @@
+use task::JoinHandle;
 use crate::controller::Floor;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
+use tokio::task;
 use ControllerToElevatorsMsg::{CloseDoors, ElevatorMission, OpenDoors};
 use DoorStatus::{Closing, Opening};
 use ElevatorStatus::MovingFromTo;
@@ -42,7 +44,7 @@ struct ElevatorState {
 }
 
 impl Elevator {
-    pub fn init(mut self) -> tokio::task::JoinHandle<()> {
+    pub fn init(mut self) -> JoinHandle<()> {
         tokio::spawn(async move {
             loop {
                 if let Ok(msg) = self.from_controller.recv().await {
