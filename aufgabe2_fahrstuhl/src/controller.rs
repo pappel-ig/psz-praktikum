@@ -14,7 +14,6 @@ use crate::msg::ControllerToPersonsMsg::{ElevatorHalt, UpdateBoardingStatus};
 use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
 use crate::msg::PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator, PersonLeavingElevator, PersonLeftElevator, PersonRequestElevator};
 use crate::utils;
-use rumqttc::{AsyncClient, QoS};
 use serde_json::json;
 use DoorStatus::Open;
 use crate::controller::DoorStatus::Closed;

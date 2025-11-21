@@ -1,13 +1,10 @@
-use crate::controller::Floor::{First, Ground, Second, Third};
 use crate::controller::ElevatorController;
 use crate::elevator::Elevator;
 use crate::logger::SimpleLogger;
 use crate::person::Person;
 use crate::utils::delay;
-use log::{LevelFilter, info, error};
+use log::{LevelFilter};
 use tokio::sync::{broadcast, mpsc};
-use rumqttc::{MqttOptions, AsyncClient, QoS, EventLoop};
-use std::time::Duration;
 
 mod controller;
 mod elevator;

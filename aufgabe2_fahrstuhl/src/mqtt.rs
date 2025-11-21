@@ -1,8 +1,10 @@
 use std::sync::mpsc::Receiver;
-use rumqttc::{AsyncClient, EventLoop, MqttOptions};
+use paho_mqtt::{AsyncClient, ConnectOptions, Token};
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
+use serde::{Deserialize, Deserializer};
 use crate::controller::Floor;
+use crate::mqtt::Receive::Person;
 
 pub enum Send {
     Elevator {
@@ -33,25 +35,42 @@ enum Receive {
     }
 }
 
+impl Deserialize for Receive {
+    fn deserialize<'de, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        deserializer.des
+    }
+}
+
 pub struct MqttConnector {
     from: Receiver<Send>,
     to: Sender<Send>,
     client: AsyncClient,
-    event_loop: EventLoop
+    token: Token
 }
 
 impl MqttConnector {
     pub fn init(mut self) -> JoinHandle<()> {
         tokio::spawn(async move {
-            loop {
-                match self.event_loop.poll().await {
-                    Ok(notification) => {
-                        if let rumqttc::Event::Incoming(rumqttc::Packet::Publish(p)) = notification {
-                            let person_id = format!("Person_{}", rand::random::<u16>());
+
+            self.client.subscribe("person/+/introduce", 1);
+            for msg in self.client.start_consuming() {
+                if let Some(msg) = msg {
+                    let payload = msg.payload_str();
+                    msg.
+
+                    if let Ok(receive_msg) = serde_json::from_str::<Receive>(&payload) {
+                        match receive_msg {
+                            Person { id, current_floor, destination_floor } => {
+                                let send_msg = Send::Person {
+                                    id,
+                                    msg: PersonMsg::Done // Example message
+                                };
+                                self.to.send(send_msg).await.unwrap();
+                            }
                         }
-                    }
-                    Err(e) => {
-                        
                     }
                 }
             }
@@ -59,13 +78,13 @@ impl MqttConnector {
     }
 
     pub fn new(from: Receiver<Send>, to: Sender<Send>) -> Self {
-        let mqttoptions = MqttOptions::new("elevator-sim", "localhost", 1883);
-        let (client, event_loop) = AsyncClient::new(mqttoptions, 10);
+        let client = AsyncClient::new("mqtt://localhost:1883").unwrap();
+        let token = client.connect(ConnectOptions::new());
         MqttConnector {
             from,
             to,
             client,
-            event_loop
+            token
         }
     }
 }
