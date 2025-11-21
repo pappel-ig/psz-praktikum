@@ -10,6 +10,9 @@ use Floor::Ground;
 use utils::delay;
 use crate::elevator::DoorStatus::{Closed, Open};
 use crate::elevator::ElevatorStatus::IdleIn;
+use crate::mqtt::ElevatorMsg::Position;
+use crate::mqtt::PersonMsg::StatusUpdate;
+use crate::mqtt::Send::{ElevatorTopic, PersonTopic};
 use crate::msg::{ControllerToElevatorsMsg, ElevatorToControllerMsg};
 use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
 use crate::utils;
@@ -91,6 +94,7 @@ impl Elevator {
         let _ = self.to_controller.send(ElevatorMoving(self.id.clone(), self.state.floor, dest)).await;
         delay(1);
         self.state.status = IdleIn(dest);
+        self.position_update(dest).await;
         let _ = self.to_controller.send(ElevatorArrived(self.id.clone(), dest)).await;
     }
 
@@ -112,6 +116,16 @@ impl Elevator {
             self.state.doors_status = Closed;
             let _ = self.to_controller.send(DoorsClosed(self.id.clone())).await;
         }
+    }
+
+    async fn position_update(&mut self, floor: Floor) {
+        let msg = ElevatorTopic {
+            id: self.id.clone(),
+            msg: Position {
+                floor
+            },
+        };
+        let _ = self.to_mqtt.send(msg).await;
     }
 }
 

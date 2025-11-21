@@ -10,9 +10,12 @@ use tokio::task;
 use BoardingStatus::{Accepted, Rejected};
 use ControllerToPersonsMsg::{UpdateBoardingStatus};
 use Floor::{First, Ground, Second, Third};
+use PersonMsg::StatusUpdate;
 use PersonStatus::{Choosing, Done, Entering, Idle, InElevator};
 use PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator};
 use crate::controller::{BoardingStatus, Floor};
+use crate::mqtt::PersonMsg;
+use crate::mqtt::Send::PersonTopic;
 use crate::msg::{ControllerToPersonsMsg, PersonToControllerMsg};
 use crate::msg::ControllerToPersonsMsg::{ElevatorHalt};
 use crate::msg::PersonToControllerMsg::{PersonLeavingElevator, PersonLeftElevator, PersonRequestElevator};
@@ -133,6 +136,7 @@ impl Person {
     async fn handle_elevator_halt(&mut self, elevator: String, floor: Floor) {
         if self.state.current_floor.eq(&floor) && self.state.status.eq(&Idle) {
             self.state.status = Entering;
+            self.status_update().await;
             let _ = self.to_controller.send(PersonEnteringElevator(self.id.clone(), elevator.clone())).await;
             delay(1);
             let _ = self.to_controller.send(PersonEnteredElevator(self.id.clone(), elevator.clone())).await;
@@ -140,6 +144,7 @@ impl Person {
         if self.state.destination_floor.eq(&floor) && self.state.status.eq(&InElevator) && self.state.elevator.eq(&Some(elevator.clone())) {
             self.leave_elevator(self.id.clone(), elevator).await;
             self.state.status = Done;
+            self.status_update().await;
             println!("PersonFinished(id={})", self.id);
         }
     }
@@ -149,6 +154,7 @@ impl Person {
             match boarding_status {
                 Accepted => {
                     self.state.status = InElevator;
+                    self.status_update().await;
                     self.state.elevator = Some(elevator.clone());
                     let _ = self.to_controller.send(PersonChoosingFloor(self.id.clone(), elevator, self.state.destination_floor)).await;
                 }
@@ -164,11 +170,23 @@ impl Person {
     async fn leave_elevator(&mut self, person: String, elevator: String) {
         self.state.elevator = None;
         self.state.status = Leaving;
+        self.status_update().await;
         let _ = self.to_controller.send(PersonLeavingElevator(person.clone(), elevator.clone())).await;
         delay(1);
         self.state.status = Idle;
+        self.status_update().await;
         let _ = self.to_controller.send(PersonLeftElevator(person, elevator.clone())).await;
         delay(1);
+    }
+
+    async fn status_update(&mut self) {
+        let msg = PersonTopic {
+            id: self.id.clone(),
+            msg: StatusUpdate {
+                status: self.state.status.clone(),
+            },
+        };
+        let _ = self.to_mqtt.send(msg).await;
     }
 
     fn pick_two_distinct_floors() -> (Floor, Floor) {
