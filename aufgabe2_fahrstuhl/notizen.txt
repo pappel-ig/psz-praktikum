@@ -1,2 +1,3 @@
 Notizen für die Vorstellung:
 - Verlagerung des Problems: Bei zu vielen Nachrichten -> kaputt! endliche Kapazität im Channel!
+- Logik: Zentral im controller, möglichst "dummer" elevator & person!

@@ -14,8 +14,10 @@ use PersonMsg::StatusUpdate;
 use PersonStatus::{Choosing, Done, Entering, Idle, InElevator};
 use PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator};
 use crate::controller::{BoardingStatus, Floor};
+use crate::mqtt::ElevatorMsg::Door;
 use crate::mqtt::PersonMsg;
-use crate::mqtt::Send::PersonTopic;
+use crate::mqtt::PersonMsg::Boarding;
+use crate::mqtt::Send::{ElevatorTopic, PersonTopic};
 use crate::msg::{ControllerToPersonsMsg, PersonToControllerMsg};
 use crate::msg::ControllerToPersonsMsg::{ElevatorHalt};
 use crate::msg::PersonToControllerMsg::{PersonLeavingElevator, PersonLeftElevator, PersonRequestElevator};
@@ -128,6 +130,8 @@ impl Person {
             }
         })
     }
+    
+    // Handlers
 
     pub async fn request_elevator(&mut self) {
         let _ = self.to_controller.send(PersonRequestElevator(self.state.current_floor)).await;
@@ -151,6 +155,7 @@ impl Person {
 
     async fn handle_update_boarding_status(&mut self, person: String, elevator: String, boarding_status: BoardingStatus) {
         if self.id.eq(&person) {
+            self.update_boarding_status(&boarding_status).await;
             match boarding_status {
                 Accepted => {
                     self.state.status = InElevator;
@@ -178,6 +183,8 @@ impl Person {
         let _ = self.to_controller.send(PersonLeftElevator(person, elevator.clone())).await;
         delay(1);
     }
+    
+    // MQTT-Updates
 
     async fn status_update(&mut self) {
         let msg = PersonTopic {
@@ -188,6 +195,18 @@ impl Person {
         };
         let _ = self.to_mqtt.send(msg).await;
     }
+
+    async fn update_boarding_status(&mut self, status: &BoardingStatus) {
+        let msg = PersonTopic {
+            id: self.id.clone(),
+            msg: Boarding {
+                status: status.clone(),
+            },
+        };
+        let _ = self.to_mqtt.send(msg).await;
+    }
+    
+    // Other Methods
 
     fn pick_two_distinct_floors() -> (Floor, Floor) {
         let mut rng = rng();

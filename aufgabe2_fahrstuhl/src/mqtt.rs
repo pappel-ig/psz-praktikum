@@ -1,11 +1,13 @@
-use paho_mqtt::{AsyncClient, ConnectOptions, Message, Token};
+use paho_mqtt::{AsyncClient, ConnectOptions, Message};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
 use ElevatorMsg::Position;
-use PersonMsg::StatusUpdate;
+use PersonMsg::{Boarding, StatusUpdate};
 use Send::{ElevatorTopic, PersonTopic};
-use crate::controller::Floor;
+use crate::controller::{BoardingStatus, Floor};
+use crate::elevator::DoorStatus;
+use crate::mqtt::ElevatorMsg::{Door, Missions, Moving, Passengers, Request};
 use crate::person::PersonStatus;
 
 pub enum Send {
@@ -23,13 +25,18 @@ pub enum Send {
 #[serde(untagged)]
 pub enum ElevatorMsg {
     Position { floor: Floor },
-    // ...
+    Door { status: DoorStatus },
+    Moving { from: Floor, to: Floor },
+    Passengers { passengers: Vec<String> },
+    Request { floor: Floor },
+    Missions { missions: Vec<Floor> }
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PersonMsg {
     StatusUpdate { status: PersonStatus },
+    Boarding { status: BoardingStatus }
     // ...
 }
 
@@ -88,12 +95,30 @@ impl MqttConnector {
                                 Position { .. } => {
                                     let _ = client.publish(Message::new(format!("elevator/{}/position", id), serde_json::to_string(&msg).unwrap(), 1)).await;
                                 },
+                                Door { .. } => {
+                                    let _ = client.publish(Message::new(format!("elevator/{}/door", id), serde_json::to_string(&msg).unwrap(), 1)).await;
+                                },
+                                Moving { .. } => {
+                                    let _ = client.publish(Message::new(format!("elevator/{}/moving", id), serde_json::to_string(&msg).unwrap(), 1)).await;
+                                },
+                                Passengers { .. } => {
+                                    let _ = client.publish(Message::new(format!("elevator/{}/passengers", id), serde_json::to_string(&msg).unwrap(), 1)).await;
+                                },
+                                Request { .. } => {
+                                    let _ = client.publish(Message::new(format!("elevator/{}/request", id), serde_json::to_string(&msg).unwrap(), 1)).await;
+                                },
+                                Missions { .. } => {
+                                    let _ = client.publish(Message::new(format!("elevator/{}/missions", id), serde_json::to_string(&msg).unwrap(), 1)).await;
+                                },
                             }
                         }
                         PersonTopic { id, msg } => {
                             match msg {
                                 StatusUpdate { .. } => {
                                     let _ = client.publish(Message::new(format!("person/{}/status", id), serde_json::to_string(&msg).unwrap(), 1)).await;
+                                },
+                                Boarding { .. } => {
+                                    let _ = client.publish(Message::new(format!("person/{}/boarding", id), serde_json::to_string(&msg).unwrap(), 1)).await;
                                 }
                             }
                         }

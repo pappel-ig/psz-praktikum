@@ -19,6 +19,8 @@ use serde_json::json;
 use sync::mpsc;
 use DoorStatus::Open;
 use crate::controller::DoorStatus::Closed;
+use crate::mqtt::ElevatorMsg::{Door, Missions, Moving, Passengers, Request};
+use crate::mqtt::Send::ElevatorTopic;
 // NEU
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
@@ -29,7 +31,7 @@ pub enum Floor {
     Third
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum BoardingStatus {
     Accepted,
     Rejected
@@ -192,9 +194,11 @@ impl ElevatorController {
             state,
         }
     }
-    //
+
+    // Handlers
 
     async fn handle_elevator_moving(&mut self, elevator: String, from: Floor, to: Floor) {
+        self.moving(elevator, from, to).await
     }
 
     async fn handle_elevator_arrived(&mut self, elevator: String, dest: Floor) {
@@ -240,15 +244,19 @@ impl ElevatorController {
     }
 
     async fn handle_person_request_elevator(&mut self, target: Floor) {
-        let mut values: Vec<&mut ElevatorState> = self.state.values_mut().collect();
-        values.sort_by_key(|x| { x.missions.len() });
-        let elevator = values.first_mut().unwrap();
+        let (_, elevator) = self.state
+            .iter_mut()
+            .min_by_key(|(_, s)| s.missions.len())
+            .unwrap();
 
         if elevator.mission.is_none() && elevator.missions.is_empty() {
             elevator.mission = Some(target);
             let _ = self.to_elevators.send(ElevatorMission(elevator.id.clone(), target));
         } else if !elevator.missions.contains(&target) {
             elevator.missions.push_back(target);
+            let missions = elevator.missions.iter().cloned().collect();
+            let id = elevator.id.clone();
+            self.missions(id, missions).await;
         }
     }
 
@@ -258,13 +266,15 @@ impl ElevatorController {
 
     async fn handle_person_entered_elevator(&mut self, person: String, elevator: String) {
         let state = self.state.get_mut(&elevator).unwrap();
-
         if state.passengers.len() < 2 {
             state.passengers.push(person.clone());
-            let _ = self.to_persons.send(UpdateBoardingStatus(person, elevator, BoardingStatus::Accepted));
+            let _ = self.to_persons.send(UpdateBoardingStatus(person, elevator.clone(), BoardingStatus::Accepted));
         } else {
-            let _ = self.to_persons.send(UpdateBoardingStatus(person, elevator, BoardingStatus::Rejected));
+            let _ = self.to_persons.send(UpdateBoardingStatus(person, elevator.clone(), BoardingStatus::Rejected));
         }
+
+        let passengers = state.passengers.clone();
+        self.passengers(elevator, passengers).await
     }
 
     async fn handle_person_leaving_elevator(&mut self, person: String, elevator: String) {
@@ -275,6 +285,9 @@ impl ElevatorController {
         let state = self.state.get_mut(&elevator).unwrap();
 
         state.passengers.retain(|x| { x.ne(&person) });
+
+        let passengers = state.passengers.clone();
+        self.passengers(elevator, passengers).await
     }
 
     async fn handle_person_choosing_floor(&mut self, person: String, elevator: String, dest: Floor) {
@@ -282,8 +295,55 @@ impl ElevatorController {
 
         if !state.missions.contains(&dest) {
             state.missions.push_back(dest);
+            let missions = state.missions.iter().cloned().collect();
+            self.missions(elevator.clone(), missions).await;
         }
 
         let _ = self.to_elevators.send(CloseDoors(elevator));
     }
+
+    // MQTT Updates
+
+    async fn moving(&self, elevator: String, from: Floor, to: Floor) {
+        let msg = ElevatorTopic {
+            id: elevator,
+            msg: Moving {
+                from,
+                to
+            },
+        };
+        let _ = self.to_mqtt.send(msg).await;
+    }
+
+    async fn passengers(&self, elevator: String, passengers: Vec<String>) {
+        let msg = ElevatorTopic {
+            id: elevator,
+            msg: Passengers {
+                passengers
+            },
+        };
+        let _ = &self.to_mqtt.send(msg).await;
+    }
+
+
+    async fn request(&self, elevator: String, floor: Floor) {
+        let msg = ElevatorTopic {
+            id: elevator,
+            msg: Request {
+                floor
+            },
+        };
+        let _ = &self.to_mqtt.send(msg).await;
+    }
+
+    async fn missions(&self, elevator: String, missions: Vec<Floor>) {
+        let msg = ElevatorTopic {
+            id: elevator,
+            msg: Missions {
+                missions
+            },
+        };
+        let _ = &self.to_mqtt.send(msg).await;
+    }
+
 }

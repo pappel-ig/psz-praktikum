@@ -1,21 +1,21 @@
-use task::JoinHandle;
+use serde::{Deserialize, Serialize};
 use crate::controller::Floor;
+use crate::elevator::DoorStatus::{Closed, Open};
+use crate::elevator::ElevatorStatus::IdleIn;
+use crate::mqtt::ElevatorMsg::{Door, Position};
+use crate::mqtt::Send::ElevatorTopic;
+use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
+use crate::msg::{ControllerToElevatorsMsg, ElevatorToControllerMsg};
+use crate::utils;
+use task::JoinHandle;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
 use tokio::task;
+use utils::delay;
 use ControllerToElevatorsMsg::{CloseDoors, ElevatorMission, OpenDoors};
 use DoorStatus::{Closing, Opening};
 use ElevatorStatus::MovingFromTo;
 use Floor::Ground;
-use utils::delay;
-use crate::elevator::DoorStatus::{Closed, Open};
-use crate::elevator::ElevatorStatus::IdleIn;
-use crate::mqtt::ElevatorMsg::Position;
-use crate::mqtt::PersonMsg::StatusUpdate;
-use crate::mqtt::Send::{ElevatorTopic, PersonTopic};
-use crate::msg::{ControllerToElevatorsMsg, ElevatorToControllerMsg};
-use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
-use crate::utils;
 
 #[derive(PartialEq)]
 pub enum ElevatorStatus {
@@ -23,8 +23,8 @@ pub enum ElevatorStatus {
     MovingFromTo(Floor, Floor)
 }
 
-#[derive(Clone)]
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive()]
 pub enum DoorStatus {
     Closed,
     Opening,
@@ -52,7 +52,6 @@ impl Elevator {
         tokio::spawn(async move {
             loop {
                 if let Ok(msg) = self.from_controller.recv().await {
-
                     match msg {
                         ElevatorMission(elevator, dest) => {
                             if self.id.eq(&elevator) {
@@ -89,21 +88,26 @@ impl Elevator {
         }
     }
 
+    // Handlers
+
     async fn handle_mission(&mut self, dest: Floor) {
         self.state.status = MovingFromTo(self.state.floor, dest);
         let _ = self.to_controller.send(ElevatorMoving(self.id.clone(), self.state.floor, dest)).await;
         delay(1);
         self.state.status = IdleIn(dest);
-        self.position_update(dest).await;
+        self.position().await;
         let _ = self.to_controller.send(ElevatorArrived(self.id.clone(), dest)).await;
     }
 
     async fn handle_open_doors(&mut self) {
         if self.state.doors_status.eq(&Closed) {
+
             self.state.doors_status = Opening;
+            self.door().await;
             let _ = self.to_controller.send(DoorsOpening(self.id.clone())).await;
             delay(1);
             self.state.doors_status = Open;
+            self.door().await;
             let _ = self.to_controller.send(DoorsOpened(self.id.clone())).await;
         }
     }
@@ -111,18 +115,32 @@ impl Elevator {
     async fn handle_close_doors(&mut self) {
         if self.state.doors_status.eq(&Open) {
             self.state.doors_status = Closing;
+            self.door().await;
             let _ = self.to_controller.send(DoorsClosing(self.id.clone())).await;
             delay(1);
             self.state.doors_status = Closed;
+            self.door().await;
             let _ = self.to_controller.send(DoorsClosed(self.id.clone())).await;
         }
     }
 
-    async fn position_update(&mut self, floor: Floor) {
+    // MQTT Updates
+
+    async fn position(&mut self) {
         let msg = ElevatorTopic {
             id: self.id.clone(),
             msg: Position {
-                floor
+                floor: self.state.floor
+            },
+        };
+        let _ = self.to_mqtt.send(msg).await;
+    }
+
+    async fn door(&mut self) {
+        let msg = ElevatorTopic {
+            id: self.id.clone(),
+            msg: Door {
+                status: self.state.doors_status.clone()
             },
         };
         let _ = self.to_mqtt.send(msg).await;
