@@ -19,7 +19,7 @@ static LOGGER: SimpleLogger = SimpleLogger;
 
 #[tokio::main]
 async fn main() {
-    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Off)).unwrap();
+    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Error)).unwrap();
 
     // controller -> elevators
     let (controller_to_elevators_tx, _) = broadcast::channel(1000);

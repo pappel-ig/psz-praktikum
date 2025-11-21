@@ -1,3 +1,4 @@
+use log::error;
 use crate::controller::Floor;
 use crate::elevator::DoorStatus::{Closed, Open};
 use crate::elevator::ElevatorStatus::IdleIn;
@@ -51,23 +52,28 @@ impl Elevator {
     pub fn init(mut self) -> JoinHandle<()> {
         tokio::spawn(async move {
             loop {
-                if let Ok(msg) = self.from_controller.recv().await {
-                    match msg {
-                        ElevatorMission(elevator, dest) => {
-                            if self.id.eq(&elevator) {
-                                self.handle_mission(dest).await
+                match self.from_controller.recv().await {
+                    Ok(msg) => {
+                        match msg {
+                            ElevatorMission(elevator, dest) => {
+                                if self.id.eq(&elevator) {
+                                    self.handle_mission(dest).await
+                                }
+                            }
+                            OpenDoors(elevator) => {
+                                if self.id.eq(&elevator) {
+                                    self.handle_open_doors().await
+                                }
+                            }
+                            CloseDoors(elevator) => {
+                                if self.id.eq(&elevator) {
+                                    self.handle_close_doors().await
+                                }
                             }
                         }
-                        OpenDoors(elevator) => {
-                            if self.id.eq(&elevator) {
-                                self.handle_open_doors().await
-                            }
-                        }
-                        CloseDoors(elevator) => {
-                            if self.id.eq(&elevator) {
-                                self.handle_close_doors().await
-                            }
-                        }
+                    }
+                    Err(err) => {
+                        error!("Error in Channel: {}", err);
                     }
                 }
             }

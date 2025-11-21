@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Display, Formatter};
-use log::{debug, info, trace};
+use log::{debug, error, info, trace};
 use rand::rng;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
@@ -111,20 +111,25 @@ impl Person {
         tokio::spawn(async move {
             self.request_elevator().await;
             loop {
-                if let Ok(msg) = self.from_controller.recv().await {
-                    info!("{:?}", msg);
-                    match msg {
-                        ElevatorHalt(elevator, floor) => {
-                            self.handle_elevator_halt(elevator.clone(), floor.clone()).await
-                        }
-                        UpdateBoardingStatus(person, elevator, boarding_status) => {
-                            if self.id.eq(&person) {
-                                debug!("UpdateBoardingStatus(person={}, elevator={}, boarding_status={})", person, elevator, boarding_status);
+                match self.from_controller.recv().await {
+                    Ok(msg) => {
+                        info!("{:?}", msg);
+                        match msg {
+                            ElevatorHalt(elevator, floor) => {
+                                self.handle_elevator_halt(elevator.clone(), floor.clone()).await
                             }
-                            self.handle_update_boarding_status(person, elevator, boarding_status).await
+                            UpdateBoardingStatus(person, elevator, boarding_status) => {
+                                if self.id.eq(&person) {
+                                    debug!("UpdateBoardingStatus(person={}, elevator={}, boarding_status={})", person, elevator, boarding_status);
+                                }
+                                self.handle_update_boarding_status(person, elevator, boarding_status).await
+                            }
                         }
+                        info!("{:?}", self);
                     }
-                    info!("{:?}", self);
+                    Err(err) => {
+                        error!("Error in Channel: {}", err);
+                    }
                 }
             }
         })
