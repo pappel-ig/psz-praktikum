@@ -5,7 +5,7 @@ use tokio::task::JoinHandle;
 use crate::msg::ControllerToElevatorsMsg;
 use crate::msg::ControllerToElevatorsMsg::CloseDoors;
 
-static REALISTIC: bool = false;
+static REALISTIC: bool = true;
 
 pub(crate) async fn delay(ms: u64) {
     if REALISTIC {
