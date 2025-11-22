@@ -1,5 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
+use std::thread::spawn;
 use log::{info, trace};
 use serde::{Deserialize, Serialize};
 use tokio::{select, sync};
@@ -7,7 +8,6 @@ use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc::Receiver;
 use tokio::task::JoinHandle;
 use ControllerToElevatorsMsg::CloseDoors;
-use utils::get_closing_task;
 use crate::msg::{ControllerToElevatorsMsg, ControllerToPersonsMsg, ElevatorToControllerMsg, PersonToControllerMsg};
 use crate::msg::ControllerToElevatorsMsg::{ElevatorMission, OpenDoors};
 use crate::msg::ControllerToPersonsMsg::{ElevatorHalt, UpdateBoardingStatus};
@@ -134,16 +134,6 @@ impl ElevatorController {
                     }
                     Some(msg) = self.from_persons.recv() => {
                         info!("{:?}", msg);
-
-                        let json_msg = match &msg {
-                            PersonRequestElevator(floor) => json!({"floor": format!("{:?}", floor), "event": "PersonRequestElevator"}),
-                            PersonEnteringElevator(person, elevator) => json!({"person": person, "elevator": elevator, "event": "PersonEnteringElevator"}),
-                            PersonEnteredElevator(person, elevator) => json!({"person": person, "elevator": elevator, "event": "PersonEnteredElevator"}),
-                            PersonChoosingFloor(person, elevator, floor) => json!({"person": person, "elevator": elevator, "floor": format!("{:?}", floor), "event": "PersonChoosingFloor"}),
-                            PersonLeavingElevator(person, elevator) => json!({"person": person, "elevator": elevator, "event": "PersonLeavingElevator"}),
-                            PersonLeftElevator(person, elevator) => json!({"person": person, "elevator": elevator, "event": "PersonLeftElevator"}),
-                        };
-
                         match msg {
                             PersonRequestElevator(floor) => {
                                 self.handle_person_request_elevator(floor).await;
@@ -194,7 +184,7 @@ impl ElevatorController {
     // Handlers
 
     async fn handle_elevator_moving(&mut self, elevator: String, from: Floor, to: Floor) {
-        self.moving(elevator, from, to).await
+        ElevatorController::moving(self.to_mqtt.clone(), elevator, from, to);
     }
 
     async fn handle_elevator_arrived(&mut self, elevator: String, dest: Floor) {
@@ -254,7 +244,7 @@ impl ElevatorController {
             elevator.missions.push_back(target);
             let missions = elevator.missions.iter().cloned().collect();
             let id = elevator.id.clone();
-            self.missions(id, missions).await;
+            ElevatorController::missions(self.to_mqtt.clone(), id, missions);
         }
     }
 
@@ -272,7 +262,7 @@ impl ElevatorController {
         }
 
         let passengers = state.passengers.clone();
-        self.passengers(elevator, passengers).await
+        ElevatorController::passengers(self.to_mqtt.clone(), elevator, passengers);
     }
 
     async fn handle_person_leaving_elevator(&mut self, person: String, elevator: String) {
@@ -285,7 +275,7 @@ impl ElevatorController {
         state.passengers.retain(|x| { x.ne(&person) });
 
         let passengers = state.passengers.clone();
-        self.passengers(elevator, passengers).await
+        ElevatorController::passengers(self.to_mqtt.clone(), elevator, passengers);
     }
 
     async fn handle_person_choosing_floor(&mut self, person: String, elevator: String, dest: Floor) {
@@ -294,19 +284,11 @@ impl ElevatorController {
         if !state.missions.contains(&dest) {
             state.missions.push_back(dest);
             let missions = state.missions.iter().cloned().collect();
-            let msg = ElevatorTopic {
-                id: elevator.clone(),
-                msg: Missions {
-                    missions
-                },
-            };
-            let _ = &self.to_mqtt.send(msg).await;
+            ElevatorController::missions(self.to_mqtt.clone(), elevator.clone(), missions);
         }
 
-        let status = state.door.clone();
-        let sender = self.to_elevators.clone();
-        if status.eq(&Open) {
-            let _ = sender.send(CloseDoors(elevator));
+        if state.door.eq(&Open) {
+            let _ = self.to_elevators.send(CloseDoors(elevator));
         } else {
             self.start_next_mission_if_idle(&elevator);
         }
@@ -314,35 +296,40 @@ impl ElevatorController {
 
     // MQTT Updates
 
-    async fn moving(&self, elevator: String, from: Floor, to: Floor) {
-        let msg = ElevatorTopic {
-            id: elevator,
-            msg: Moving {
-                from,
-                to
-            },
-        };
-        let _ = self.to_mqtt.send(msg).await;
+    fn moving(to_mqtt: mpsc::Sender<crate::mqtt::Send>, elevator: String, from: Floor, to: Floor) {
+        tokio::spawn(async move {
+            let msg = ElevatorTopic {
+                id: elevator,
+                msg: Moving {
+                    from,
+                    to
+                },
+            };
+            let _ = to_mqtt.send(msg).await;
+        });
     }
 
-    async fn passengers(&self, elevator: String, passengers: Vec<String>) {
-        let msg = ElevatorTopic {
-            id: elevator,
-            msg: Passengers {
-                passengers
-            },
-        };
-        let _ = &self.to_mqtt.send(msg).await;
+    fn passengers(to_mqtt: mpsc::Sender<crate::mqtt::Send>, elevator: String, passengers: Vec<String>) {
+        tokio::spawn(async move {
+            let msg = ElevatorTopic {
+                id: elevator,
+                msg: Passengers {
+                    passengers
+                },
+            };
+            let _ = to_mqtt.send(msg).await;
+        });
     }
 
-    async fn missions(&self, elevator: String, missions: Vec<Floor>) {
-        let msg = ElevatorTopic {
-            id: elevator,
-            msg: Missions {
-                missions
-            },
-        };
-        let _ = &self.to_mqtt.send(msg).await;
+    fn missions(to_mqtt: mpsc::Sender<crate::mqtt::Send>, elevator: String, missions: Vec<Floor>) {
+        tokio::spawn(async move {
+            let msg = ElevatorTopic {
+                id: elevator,
+                msg: Missions {
+                    missions
+                },
+            };
+            let _ = to_mqtt.send(msg).await;
+        });
     }
-
 }
