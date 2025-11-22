@@ -71,6 +71,11 @@ class MainStage implements Stage {
                 let find = this.elevators.find(e => e.name() === action.payload.id);
                 console.log(find)
                 find?.setTarget(action.payload.targetY);
+                break;
+            case "ELEVATOR_DOOR_UPDATE":
+                let elevator = this.elevators.find(e => e.name() === action.payload.id);
+                elevator?.lift.setDoorStatus(action.payload.status);
+                break;
         }
     }
 
@@ -130,6 +135,8 @@ class ElevatorStage implements Stage {
     }
 }
 
+type DoorStatus = "Opening" | "Open" | "Closing" | "Closed";
+
 class LiftStage implements Stage {
     x: number = 0;
     y: number = 700;
@@ -137,10 +144,18 @@ class LiftStage implements Stage {
     h: number = 100;
     targetY: number = 700;
     speed: number = 10;
+    doorStatus: DoorStatus = "Closed";
 
     draw(sk: p5): void {
+        // Lift
         sk.fill(255, 179, 179);
         sk.rect(this.x, this.y, this.w, this.h, 5);
+
+        // Door Status Anzeige
+        sk.textSize(12);
+        sk.fill(10);
+        sk.textAlign(sk.CENTER);
+        sk.text(this.doorStatus, this.x + this.w / 2, this.y-10);
     }
 
     update(): void {
@@ -149,6 +164,10 @@ class LiftStage implements Stage {
         } else if (this.y > this.targetY) {
             this.y -= this.speed;
         }
+    }
+
+    setDoorStatus(status: DoorStatus) {
+        this.doorStatus = status;
     }
 }
 
@@ -205,20 +224,33 @@ new p5((sk) => {
 
         client.on("connect", () => {
             client.subscribe("elevator/+/position");
+            client.subscribe("elevator/+/door");
         });
 
         client.on("message", (topic, msg) => {
+            const [_, id, kind] = topic.split("/");
             const json = JSON.parse(msg.toString());
 
             const targetY = main.FLOOR_PIXEL[json.floor as Floor];
 
-            main.action({
-                type: "ELEVATOR_POSITION_UPDATE",
-                payload: {
-                    id: topic.split("/")[1],
-                    targetY
-                }
-            });
+            if (kind === "position") {
+                main.action({
+                    type: "ELEVATOR_POSITION_UPDATE",
+                    payload: {
+                        id: topic.split("/")[1],
+                        targetY
+                    }
+                });
+            } else if (kind === "door") {
+                main.action({
+                    type: "ELEVATOR_DOOR_UPDATE",
+                    payload: {
+                        id,
+                        status: json.status
+                    }
+                });
+            }
+
         });
     };
 
