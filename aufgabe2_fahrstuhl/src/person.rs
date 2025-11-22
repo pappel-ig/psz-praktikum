@@ -21,7 +21,7 @@ use crate::msg::{ControllerToPersonsMsg, PersonToControllerMsg};
 use crate::msg::ControllerToPersonsMsg::{ElevatorHalt};
 use crate::msg::PersonToControllerMsg::{PersonLeavingElevator, PersonLeftElevator, PersonRequestElevator};
 use crate::person::PersonStatus::Leaving;
-use crate::utils::delay;
+use crate::utils::{delay, random_delay_ms};
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum PersonStatus {
@@ -147,7 +147,7 @@ impl Person {
             self.state.status = Entering;
             Person::status(self.to_mqtt.clone(), self.id.clone(), self.state.status.clone());
             let _ = self.to_controller.send(PersonEnteringElevator(self.id.clone(), elevator.clone())).await;
-            delay(500).await;
+            random_delay_ms(200, 1000).await;
             let _ = self.to_controller.send(PersonEnteredElevator(self.id.clone(), elevator.clone())).await;
         }
         if self.state.destination_floor.eq(&floor) && self.state.status.eq(&InElevator) && self.state.elevator.eq(&Some(elevator.clone())) {
@@ -170,7 +170,7 @@ impl Person {
                 }
                 Rejected => {
                     self.leave_elevator(person, elevator).await;
-                    delay(1500).await;
+                    random_delay_ms(200, 1000).await;
                     let _ = self.to_controller.send(PersonRequestElevator(self.state.current_floor)).await;
                 }
             }
@@ -182,7 +182,7 @@ impl Person {
         self.state.status = Leaving;
         Person::status(self.to_mqtt.clone(), person.clone(), self.state.status.clone());
         let _ = self.to_controller.send(PersonLeavingElevator(person.clone(), elevator.clone())).await;
-        delay(500).await;
+        random_delay_ms(200, 1000).await;
         self.state.status = Idle;
         Person::status(self.to_mqtt.clone(), person.clone(), self.state.status.clone());
         let _ = self.to_controller.send(PersonLeftElevator(person, elevator.clone())).await;
