@@ -22,17 +22,17 @@ async fn main() {
     log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Error)).unwrap();
 
     // controller -> elevators
-    let (controller_to_elevators_tx, _) = broadcast::channel(1000);
+    let (controller_to_elevators_tx, _) = broadcast::channel(100000);
     // elevator -> controller
-    let (elevator_to_controller_tx, elevator_to_controller_rx) = mpsc::channel(1000);
+    let (elevator_to_controller_tx, elevator_to_controller_rx) = mpsc::channel(100000);
     // persons -> controller
-    let (person_to_controller_tx, person_to_controller_rx) = mpsc::channel(1000);
+    let (person_to_controller_tx, person_to_controller_rx) = mpsc::channel(100000);
     // controller -> persons
-    let (controller_to_persons_tx, _) = broadcast::channel(1000);
+    let (controller_to_persons_tx, _) = broadcast::channel(100000);
     // components -> mqtt
-    let (to_mqtt_tx, to_mqtt_rx) = mpsc::channel(1000);
+    let (to_mqtt_tx, to_mqtt_rx) = mpsc::channel(100000);
     // mqtt -> persons
-    let (mqtt_to_person_tx, mut mqtt_to_person_rx) = mpsc::channel(1000);
+    let (mqtt_to_person_tx, mut mqtt_to_person_rx) = mpsc::channel(100000);
 
     let controller = ElevatorController::new(
         elevator_to_controller_rx,

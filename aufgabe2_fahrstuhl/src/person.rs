@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use task::JoinHandle;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
-use tokio::task;
+use tokio::{spawn, task};
 use BoardingStatus::{Accepted, Rejected};
 use ControllerToPersonsMsg::{UpdateBoardingStatus};
 use PersonMsg::StatusUpdate;
@@ -147,7 +147,7 @@ impl Person {
             self.state.status = Entering;
             self.status().await;
             let _ = self.to_controller.send(PersonEnteringElevator(self.id.clone(), elevator.clone())).await;
-            delay(500);
+            delay(500).await;
             let _ = self.to_controller.send(PersonEnteredElevator(self.id.clone(), elevator.clone())).await;
         }
         if self.state.destination_floor.eq(&floor) && self.state.status.eq(&InElevator) && self.state.elevator.eq(&Some(elevator.clone())) {
@@ -170,7 +170,7 @@ impl Person {
                 }
                 Rejected => {
                     self.leave_elevator(person, elevator).await;
-                    delay(1500);
+                    delay(1500).await;
                     let _ = self.to_controller.send(PersonRequestElevator(self.state.current_floor)).await;
                 }
             }
@@ -182,7 +182,7 @@ impl Person {
         self.state.status = Leaving;
         self.status().await;
         let _ = self.to_controller.send(PersonLeavingElevator(person.clone(), elevator.clone())).await;
-        delay(500);
+        delay(500).await;
         self.state.status = Idle;
         self.status().await;
         let _ = self.to_controller.send(PersonLeftElevator(person, elevator.clone())).await;

@@ -35,7 +35,7 @@ pub enum BoardingStatus {
     Rejected
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 enum DoorStatus {
     Open,
     Closed
@@ -57,7 +57,6 @@ struct ElevatorState {
     missions: VecDeque<Floor>,
     passengers: Vec<String>,
     door: DoorStatus,
-    closing_task: Option<JoinHandle<()>>,
 }
 
 impl Display for Floor {
@@ -100,7 +99,6 @@ impl ElevatorState {
             missions: VecDeque::new(),
             passengers: Vec::new(),
             door: Closed,
-            closing_task: None
         }
     }
 }
@@ -221,9 +219,7 @@ impl ElevatorController {
     }
 
     async fn handle_doors_opened(&mut self, elevator: String) {
-        let state = self.state.get_mut(&elevator).unwrap();
-
-        state.closing_task = get_closing_task(self.to_elevators.clone(), elevator.clone());
+        let _ = self.to_elevators.send(CloseDoors(elevator.clone())).unwrap();
     }
 
     async fn handle_doors_closed(&mut self, elevator: String) {
@@ -231,13 +227,17 @@ impl ElevatorController {
 
         state.door = Closed;
 
-        if let Some(task) = state.closing_task.take() {
-            task.abort();
-        }
+        self.start_next_mission_if_idle(&elevator);
+    }
 
-        if let Some(next_floor) = state.missions.pop_front() {
-            state.mission = Some(next_floor);
-            let _ = self.to_elevators.send(ElevatorMission(elevator.clone(), next_floor));
+    fn start_next_mission_if_idle(&mut self, elevator_id: &str) {
+        let state = self.state.get_mut(elevator_id).unwrap();
+
+        if state.mission.is_none() {
+            if let Some(next_floor) = state.missions.pop_front() {
+                state.mission = Some(next_floor);
+                let _ = self.to_elevators.send(ElevatorMission(elevator_id.to_string(), next_floor));
+            }
         }
     }
 
@@ -264,7 +264,7 @@ impl ElevatorController {
 
     async fn handle_person_entered_elevator(&mut self, person: String, elevator: String) {
         let state = self.state.get_mut(&elevator).unwrap();
-        if state.passengers.len() < 2 {
+        if state.passengers.len() < 2 && state.door.eq(&Open) {
             state.passengers.push(person.clone());
             let _ = self.to_persons.send(UpdateBoardingStatus(person, elevator.clone(), BoardingStatus::Accepted));
         } else {
@@ -294,10 +294,22 @@ impl ElevatorController {
         if !state.missions.contains(&dest) {
             state.missions.push_back(dest);
             let missions = state.missions.iter().cloned().collect();
-            self.missions(elevator.clone(), missions).await;
+            let msg = ElevatorTopic {
+                id: elevator.clone(),
+                msg: Missions {
+                    missions
+                },
+            };
+            let _ = &self.to_mqtt.send(msg).await;
         }
 
-        let _ = self.to_elevators.send(CloseDoors(elevator));
+        let status = state.door.clone();
+        let sender = self.to_elevators.clone();
+        if status.eq(&Open) {
+            let _ = sender.send(CloseDoors(elevator));
+        } else {
+            self.start_next_mission_if_idle(&elevator);
+        }
     }
 
     // MQTT Updates

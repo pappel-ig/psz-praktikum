@@ -1,4 +1,3 @@
-use std::thread;
 use std::time::Duration;
 use rand::{rng, Rng};
 use tokio::sync::broadcast::Sender;
@@ -8,20 +7,20 @@ use crate::msg::ControllerToElevatorsMsg::CloseDoors;
 
 static REALISTIC: bool = false;
 
-pub(crate) fn delay(ms: u64) {
+pub(crate) async fn delay(ms: u64) {
     if REALISTIC {
-        thread::sleep(Duration::from_millis(ms));
+        tokio::time::sleep(Duration::from_millis(ms)).await;
     } else {
-        thread::sleep(Duration::from_millis(1));
+        tokio::time::sleep(Duration::from_millis(1)).await;
     }
 }
 
-pub(crate) fn random_delay_ms(from: u64, to: u64) {
+pub(crate) async fn random_delay_ms(from: u64, to: u64) {
     if REALISTIC {
         let delay = rng().random_range(from..=to);
-        thread::sleep(Duration::from_millis(delay));
+        tokio::time::sleep(Duration::from_millis(delay)).await;
     } else {
-        thread::sleep(Duration::from_millis(1));
+        tokio::time::sleep(Duration::from_millis(1)).await;
     }
 }
 
