@@ -99,7 +99,8 @@ impl Elevator {
     async fn handle_mission(&mut self, dest: Floor) {
         self.state.status = MovingFromTo(self.state.floor, dest);
         let _ = self.to_controller.send(ElevatorMoving(self.id.clone(), self.state.floor, dest)).await;
-        delay(3000).await;
+        let distance_to_travel = (self.state.floor as i8 - dest as i8).abs() as u64;
+        delay(distance_to_travel * 1000).await;
         self.state.status = IdleIn(dest);
         Elevator::position(self.to_mqtt.clone(), self.id.clone(), dest);
         let _ = self.to_controller.send(ElevatorArrived(self.id.clone(), dest)).await;

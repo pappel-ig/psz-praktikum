@@ -13,8 +13,6 @@ use crate::msg::ControllerToElevatorsMsg::{ElevatorMission, OpenDoors};
 use crate::msg::ControllerToPersonsMsg::{ElevatorHalt, UpdateBoardingStatus};
 use crate::msg::ElevatorToControllerMsg::{DoorsClosed, DoorsClosing, DoorsOpened, DoorsOpening, ElevatorArrived, ElevatorMoving};
 use crate::msg::PersonToControllerMsg::{PersonChoosingFloor, PersonEnteredElevator, PersonEnteringElevator, PersonLeavingElevator, PersonLeftElevator, PersonRequestElevator};
-use crate::utils;
-use serde_json::json;
 use sync::mpsc;
 use DoorStatus::Open;
 use crate::controller::DoorStatus::Closed;
@@ -23,10 +21,10 @@ use crate::mqtt::Send::ElevatorTopic;
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Floor {
-    Ground,
-    First,
-    Second,
-    Third
+    Ground = 1,
+    First = 2,
+    Second = 3,
+    Third = 4
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
