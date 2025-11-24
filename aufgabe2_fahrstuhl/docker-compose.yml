@@ -12,3 +12,24 @@ services:
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
     restart: unless-stopped
+    networks:
+      - elevator_network
+
+  nodered:
+    image: nodered/node-red:latest
+    container_name: node-red-elevator
+    ports:
+      - "1880:1880"
+    volumes:
+      - ./node-red-data:/data
+    environment:
+      - TZ=Europe/Berlin
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    networks:
+      - elevator_network
+
+networks:
+  elevator_network:
+    driver: bridge
