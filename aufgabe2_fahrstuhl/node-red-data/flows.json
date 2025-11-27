@@ -1,0 +1,409 @@
+[
+    {
+        "id": "a1ab45a4a59109e7",
+        "type": "tab",
+        "label": "Elevator Dashboard",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "d56c22048be6bb2a",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "elevator-mqtt-broker",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "elevator",
+        "birthQos": "0",
+        "birthRetain": "true",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "1504373c94c735db",
+        "type": "ui_tab",
+        "name": "Elevator System",
+        "icon": "dashboard",
+        "order": 1,
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "eda3e9ce727d64d3",
+        "type": "ui_base",
+        "theme": {
+            "name": "theme-light",
+            "lightTheme": {
+                "default": "#0094CE",
+                "baseColor": "#0094CE",
+                "baseFont": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif",
+                "edited": true,
+                "reset": false
+            },
+            "darkTheme": {
+                "default": "#097479",
+                "baseColor": "#097479",
+                "baseFont": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif",
+                "edited": false
+            },
+            "customTheme": {
+                "name": "Untitled Theme 1",
+                "default": "#4B7930",
+                "baseColor": "#4B7930",
+                "baseFont": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif"
+            },
+            "themeState": {
+                "base-color": {
+                    "default": "#0094CE",
+                    "value": "#0094CE",
+                    "edited": false
+                },
+                "page-titlebar-backgroundColor": {
+                    "value": "#0094CE",
+                    "edited": false
+                },
+                "page-backgroundColor": {
+                    "value": "#fafafa",
+                    "edited": false
+                },
+                "page-sidebar-backgroundColor": {
+                    "value": "#ffffff",
+                    "edited": false
+                },
+                "group-textColor": {
+                    "value": "#1bbfff",
+                    "edited": false
+                },
+                "group-borderColor": {
+                    "value": "#ffffff",
+                    "edited": false
+                },
+                "group-backgroundColor": {
+                    "value": "#ffffff",
+                    "edited": false
+                },
+                "widget-textColor": {
+                    "value": "#111111",
+                    "edited": false
+                },
+                "widget-backgroundColor": {
+                    "value": "#0094ce",
+                    "edited": false
+                },
+                "widget-borderColor": {
+                    "value": "#ffffff",
+                    "edited": false
+                },
+                "base-font": {
+                    "value": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif"
+                }
+            },
+            "angularTheme": {
+                "primary": "indigo",
+                "accents": "blue",
+                "warn": "red",
+                "background": "grey",
+                "palette": "light"
+            }
+        },
+        "site": {
+            "name": "Node-RED Dashboard",
+            "hideToolbar": "false",
+            "allowSwipe": "false",
+            "lockMenu": "false",
+            "allowTempTheme": "true",
+            "dateFormat": "DD.MM.YYYY",
+            "sizes": {
+                "sx": 48,
+                "sy": 48,
+                "gx": 6,
+                "gy": 6,
+                "cx": 6,
+                "cy": 6,
+                "px": 0,
+                "py": 0
+            }
+        }
+    },
+    {
+        "id": "mqtt_broker",
+        "type": "mqtt-broker",
+        "name": "Elevator MQTT Broker",
+        "broker": "mosquitto",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "dashboard_tab",
+        "type": "ui_tab",
+        "name": "Elevator Dashboard",
+        "icon": "mi-elevator",
+        "order": 1,
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "4b4c85c68a8207c6",
+        "type": "ui_group",
+        "name": "Controls",
+        "tab": "dashboard_tab",
+        "order": 2,
+        "disp": true,
+        "width": "12",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "5c0855d557aecefe",
+        "type": "ui_group",
+        "name": "Elevator Visualization",
+        "tab": "dashboard_tab",
+        "order": 1,
+        "disp": true,
+        "width": "12",
+        "collapse": false
+    },
+    {
+        "id": "dashboard_group",
+        "type": "ui_group",
+        "name": "Elevators",
+        "tab": "dashboard_tab",
+        "order": 1,
+        "disp": false,
+        "width": "18",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "control_group",
+        "type": "ui_group",
+        "name": "Control",
+        "tab": "dashboard_tab",
+        "order": 2,
+        "disp": false,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "3451dbf8fa32907a",
+        "type": "mqtt in",
+        "z": "a1ab45a4a59109e7",
+        "name": "All Elevator Topics",
+        "topic": "elevator/#",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "mqtt_broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 130,
+        "y": 100,
+        "wires": [
+            [
+                "1f9e7b55cd950bdb"
+            ]
+        ]
+    },
+    {
+        "id": "1928f99337958a56",
+        "type": "mqtt in",
+        "z": "a1ab45a4a59109e7",
+        "name": "All Person Topics",
+        "topic": "person/#",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "mqtt_broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 130,
+        "y": 160,
+        "wires": [
+            [
+                "b266594acadd86a2"
+            ]
+        ]
+    },
+    {
+        "id": "1f9e7b55cd950bdb",
+        "type": "function",
+        "z": "a1ab45a4a59109e7",
+        "name": "Process Elevator Data",
+        "func": "const parts = msg.topic.split('/');\nconst elevatorName = parts[1];\nconst event = parts[2];\n\nlet elevators = flow.get('elevators') || {};\n\nif (!elevators[elevatorName]) {\n    elevators[elevatorName] = {\n        name: elevatorName,\n        position: 'Ground',\n        door: 'Closed',\n        passengers: [],\n        missions: [],\n        isMoving: false,\n        lastUpdate: Date.now()\n    };\n}\n\nswitch(event) {\n    case 'position':\n        elevators[elevatorName].position = msg.payload.floor;\n        elevators[elevatorName].isMoving = false;\n        break;\n    case 'door':\n        elevators[elevatorName].door = msg.payload.status;\n        break;\n    case 'passengers':\n        elevators[elevatorName].passengers = msg.payload.passengers || [];\n        break;\n    case 'missions':\n        elevators[elevatorName].missions = msg.payload.missions || [];\n        break;\n    case 'moving':\n        const mv = msg.payload;\n        elevators[elevatorName].isMoving = (mv.from !== mv.to);\n        elevators[elevatorName].movingFrom = mv.from;\n        elevators[elevatorName].movingTo = mv.to;\n        break;\n}\n\nelevators[elevatorName].lastUpdate = Date.now();\nflow.set('elevators', elevators);\n\nmsg.payload = elevators;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 370,
+        "y": 100,
+        "wires": [
+            [
+                "58c0ce26f655c639"
+            ]
+        ]
+    },
+    {
+        "id": "b266594acadd86a2",
+        "type": "function",
+        "z": "a1ab45a4a59109e7",
+        "name": "Process Person Data",
+        "func": "const parts = msg.topic.split('/');\nconst personId = parts[1];\nconst event = parts[2];\n\nlet persons = flow.get('persons') || {};\n\nif (!persons[personId]) {\n    persons[personId] = {\n        id: personId,\n        status: 'Idle',\n        requestedFloor: null,\n        currentFloor: null\n    };\n}\n\nswitch(event) {\n    case 'status':\n        persons[personId].status = msg.payload.status;\n        // When person enters elevator, they leave their current floor\n        if (msg.payload.status === 'InElevator' || msg.payload.status === 'Done') {\n            // Keep currentFloor for tracking, but mark as not waiting\n        }\n        break;\n    case 'request':\n        persons[personId].requestedFloor = msg.payload.floor;\n        // Don't change currentFloor - it was set when person was created\n        break;\n    case 'boarding':\n        persons[personId].boardingStatus = msg.payload.status;\n        break;\n}\n\nflow.set('persons', persons);\nmsg.payload = persons;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 160,
+        "wires": [
+            [
+                "58c0ce26f655c639"
+            ]
+        ]
+    },
+    {
+        "id": "58c0ce26f655c639",
+        "type": "function",
+        "z": "a1ab45a4a59109e7",
+        "name": "Combine Data",
+        "func": "const elevators = flow.get('elevators') || {};\nconst persons = flow.get('persons') || {};\n\n// Count persons waiting ON each floor (currentFloor)\nconst waitingPerFloor = {\n    'Ground': 0,\n    'First': 0,\n    'Second': 0,\n    'Third': 0\n};\n\nObject.values(persons).forEach(person => {\n    // Count persons who are waiting on their current floor\n    // They're waiting if: status is 'Entering', 'Idle', or 'Leaving' (rejected)\n    // But NOT if they're 'InElevator' or 'Done'\n    if (person.currentFloor && \n        (person.status === 'Entering' || person.status === 'Idle' || person.status === 'Leaving') &&\n        person.status !== 'InElevator' && \n        person.status !== 'Done') {\n        if (waitingPerFloor[person.currentFloor] !== undefined) {\n            waitingPerFloor[person.currentFloor]++;\n        }\n    }\n});\n\nmsg.payload = {\n    elevators: elevators,\n    persons: persons,\n    waitingPerFloor: waitingPerFloor,\n    timestamp: new Date().toISOString()\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 600,
+        "y": 130,
+        "wires": [
+            [
+                "8fd6428d10bab5e8"
+            ]
+        ]
+    },
+    {
+        "id": "8fd6428d10bab5e8",
+        "type": "ui_template",
+        "z": "a1ab45a4a59109e7",
+        "group": "dashboard_group",
+        "name": "Elevator Visualization",
+        "order": 1,
+        "width": "18",
+        "height": "20",
+        "format": "<div id=\"elevator-container\">\n    <style>\n        * {\n            box-sizing: border-box;\n        }\n        \n        #elevator-container {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n            background: #f5f7fa;\n            padding: 20px;\n            min-height: 100vh;\n        }\n        \n        .elevators-grid {\n            display: grid;\n            grid-template-columns: repeat(3, 1fr);\n            gap: 25px;\n            margin: 0 auto;\n        }\n        \n        .elevator-card {\n            background: white;\n            border-radius: 12px;\n            padding: 24px;\n            box-shadow: 0 2px 8px rgba(0,0,0,0.08);\n            border: 1px solid #e8ecef;\n            min-width: 0;\n            overflow: hidden;\n        }\n        \n        .elevator-header {\n            text-align: center;\n            margin-bottom: 24px;\n            padding-bottom: 16px;\n            border-bottom: 2px solid #f0f3f5;\n        }\n        \n        .elevator-name {\n            font-size: 1.4em;\n            font-weight: 600;\n            color: #34495e;\n            margin: 0 0 8px 0;\n        }\n        \n        .elevator-status-mini {\n            font-size: 0.85em;\n            color: #7f8c8d;\n        }\n        \n        .building {\n            position: relative;\n            background: #fafbfc;\n            border: 1px solid #dfe4e8;\n            border-radius: 8px;\n            height: 440px;\n            margin: 0 0 20px 0;\n            overflow: hidden;\n        }\n        \n        .floor {\n            height: 110px;\n            border-bottom: 1px solid #e1e8ed;\n            position: relative;\n            display: flex;\n            align-items: center;\n            padding: 0 16px;\n        }\n        \n        .floor:last-child {\n            border-bottom: none;\n        }\n        \n        .floor-info {\n            display: flex;\n            flex-direction: column;\n            gap: 4px;\n        }\n        \n        .floor-label {\n            font-weight: 600;\n            color: #2c3e50;\n            font-size: 0.9em;\n        }\n        \n        .floor-waiting {\n            font-size: 0.75em;\n            color: #95a5a6;\n        }\n        \n        .floor-waiting.has-waiting {\n            color: #e67e22;\n            font-weight: 600;\n        }\n        \n        .elevator-shaft {\n            position: absolute;\n            right: 50px;\n            top: 0;\n            width: 90px;\n            height: 100%;\n            background: linear-gradient(to bottom, #ecf0f1 0%, #d5dbdd 100%);\n            border-left: 1px solid #bdc3c7;\n            border-right: 1px solid #bdc3c7;\n        }\n        \n        .elevator-car {\n            position: absolute;\n            right: 50px;\n            width: 90px;\n            height: 100px;\n            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);\n            border: 2px solid #2c3e50;\n            border-radius: 6px;\n            transition: top 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);\n            display: flex;\n            flex-direction: column;\n            justify-content: center;\n            align-items: center;\n            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);\n        }\n        \n        .elevator-car.moving {\n            box-shadow: 0 4px 16px rgba(52, 152, 219, 0.5);\n        }\n        \n        .door {\n            position: absolute;\n            top: 0;\n            width: 45px;\n            height: 100%;\n            background: #34495e;\n            transition: transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);\n        }\n        \n        .door.left {\n            left: 0;\n            border-radius: 6px 0 0 6px;\n        }\n        \n        .door.right {\n            right: 0;\n            border-radius: 0 6px 6px 0;\n        }\n        \n        .door::after {\n            content: '';\n            position: absolute;\n            width: 2px;\n            height: 60%;\n            background: #7f8c8d;\n            top: 20%;\n        }\n        \n        .door.left::after {\n            right: 8px;\n        }\n        \n        .door.right::after {\n            left: 8px;\n        }\n        \n        .door.open.left {\n            transform: translateX(-100%);\n        }\n        \n        .door.open.right {\n            transform: translateX(100%);\n        }\n        \n        .door.opening.left {\n            transform: translateX(-70%);\n        }\n        \n        .door.opening.right {\n            transform: translateX(70%);\n        }\n        \n        .door.closing.left {\n            transform: translateX(-30%);\n        }\n        \n        .door.closing.right {\n            transform: translateX(30%);\n        }\n        \n        .car-content {\n            z-index: 1;\n            text-align: center;\n            color: white;\n        }\n        \n        .passengers-count {\n            font-size: 2.2em;\n            font-weight: 700;\n            margin-bottom: 4px;\n            text-shadow: 0 2px 4px rgba(0,0,0,0.2);\n        }\n        \n        .passengers-label {\n            font-size: 0.7em;\n            opacity: 0.9;\n            text-transform: uppercase;\n            letter-spacing: 0.5px;\n        }\n        \n        .info-panel {\n            display: grid;\n            gap: 12px;\n        }\n        \n        .info-row {\n            display: flex;\n            justify-content: space-between;\n            align-items: center;\n            padding: 10px 14px;\n            background: #f8f9fa;\n            border-radius: 6px;\n            font-size: 0.9em;\n        }\n        \n        .info-label {\n            font-weight: 600;\n            color: #5a6c7d;\n        }\n        \n        .info-value {\n            color: #2c3e50;\n            font-weight: 500;\n        }\n        \n        .status-badge {\n            display: inline-flex;\n            align-items: center;\n            gap: 6px;\n            padding: 4px 12px;\n            border-radius: 16px;\n            font-size: 0.85em;\n            font-weight: 600;\n        }\n        \n        .status-moving {\n            background: #fff3cd;\n            color: #856404;\n        }\n        \n        .status-idle {\n            background: #d4edda;\n            color: #155724;\n        }\n        \n        .missions-container {\n            display: flex;\n            gap: 6px;\n            flex-wrap: wrap;\n        }\n        \n        .mission-badge {\n            background: #e3f2fd;\n            color: #1565c0;\n            padding: 4px 10px;\n            border-radius: 12px;\n            font-size: 0.8em;\n            font-weight: 600;\n            border: 1px solid #bbdefb;\n        }\n        \n        .passengers-list {\n            font-size: 0.85em;\n            color: #5a6c7d;\n            max-width: 150px;\n            white-space: nowrap;\n            overflow: hidden;\n            text-overflow: ellipsis;\n        }\n    </style>\n    \n    <div class=\"elevators-grid\" id=\"elevators\"></div>\n</div>\n\n<script>\n(function(scope) {\n    const FLOORS = ['Third', 'Second', 'First', 'Ground'];\n    const FLOOR_NAMES = {\n        'Ground': 'Erdgeschoss',\n        'First': '1. Obergeschoss',\n        'Second': '2. Obergeschoss',\n        'Third': '3. Obergeschoss'\n    };\n    const FLOOR_SHORT = {\n        'Ground': 'EG',\n        'First': '1. OG',\n        'Second': '2. OG',\n        'Third': '3. OG'\n    };\n    const FLOOR_POSITIONS = {\n        'Ground': 3,\n        'First': 2,\n        'Second': 1,\n        'Third': 0\n    };\n    \n    function getFloorTop(floorName) {\n        const position = FLOOR_POSITIONS[floorName];\n        return position * 110 + 5;\n    }\n    \n    function renderElevator(name, data, waitingPerFloor) {\n        const position = data.position || 'Ground';\n        const door = data.door || 'Closed';\n        const passengers = data.passengers || [];\n        const missions = data.missions || [];\n        const isMoving = data.isMoving || false;\n        \n        let doorClass = '';\n        if (door === 'Open') doorClass = 'open';\n        else if (door === 'Opening') doorClass = 'opening';\n        else if (door === 'Closing') doorClass = 'closing';\n        \n        const doorText = {\n            'Open': 'Offen',\n            'Closed': 'Geschlossen',\n            'Opening': 'Öffnet',\n            'Closing': 'Schließt'\n        }[door] || door;\n        \n        return `\n            <div class=\"elevator-card\">\n                <div class=\"elevator-header\">\n                    <h2 class=\"elevator-name\">${name}</h2>\n                    <div class=\"elevator-status-mini\">${FLOOR_SHORT[position]}</div>\n                </div>\n                \n                <div class=\"building\">\n                    ${FLOORS.map((floor, idx) => {\n                        const waiting = waitingPerFloor[floor] || 0;\n                        return `\n                        <div class=\"floor\">\n                            <div class=\"floor-info\">\n                                <span class=\"floor-label\">${FLOOR_SHORT[floor]}</span>\n                                <span class=\"floor-waiting ${waiting > 0 ? 'has-waiting' : ''}\">\n                                    ${waiting > 0 ? `${waiting} wartend` : ''}\n                                </span>\n                            </div>\n                        </div>\n                    `}).join('')}\n                    \n                    <div class=\"elevator-shaft\"></div>\n                    \n                    <div class=\"elevator-car ${isMoving ? 'moving' : ''}\" style=\"top: ${getFloorTop(position)}px;\">\n                        <div class=\"door left ${doorClass}\"></div>\n                        <div class=\"door right ${doorClass}\"></div>\n                        <div class=\"car-content\">\n                            <div class=\"passengers-count\">${passengers.length}</div>\n                            <div class=\"passengers-label\">Personen</div>\n                        </div>\n                    </div>\n                </div>\n                \n                <div class=\"info-panel\">\n                    <div class=\"info-row\">\n                        <span class=\"info-label\">Status</span>\n                        <span class=\"status-badge ${isMoving ? 'status-moving' : 'status-idle'}\">\n                            ${isMoving ? '⟳ In Bewegung' : '■ Bereit'}\n                        </span>\n                    </div>\n                    <div class=\"info-row\">\n                        <span class=\"info-label\">Türen</span>\n                        <span class=\"info-value\">${doorText}</span>\n                    </div>\n                    <div class=\"info-row\">\n                        <span class=\"info-label\">Passagiere</span>\n                        <span class=\"passengers-list\" title=\"${passengers.join(', ')}\">\n                            ${passengers.length > 0 ? passengers.join(', ') : 'Keine'}\n                        </span>\n                    </div>\n                    <div class=\"info-row\">\n                        <span class=\"info-label\">Ziele</span>\n                        <div class=\"missions-container\">\n                            ${missions.length > 0 \n                                ? missions.map(m => `<span class=\"mission-badge\">${FLOOR_SHORT[m]}</span>`).join('') \n                                : '<span class=\"info-value\">Keine</span>'}\n                        </div>\n                    </div>\n                </div>\n            </div>\n        `;\n    }\n    \n    scope.$watch('msg', function(msg) {\n        if (msg && msg.payload && msg.payload.elevators) {\n            const elevators = msg.payload.elevators;\n            const waitingPerFloor = msg.payload.waitingPerFloor || {};\n            const container = document.getElementById('elevators');\n            \n            const elevatorNames = ['Korinthisch', 'Ionisch', 'Dorisch'];\n            \n            container.innerHTML = elevatorNames.map(name => {\n                const data = elevators[name] || {\n                    position: 'Ground',\n                    door: 'Closed',\n                    passengers: [],\n                    missions: [],\n                    isMoving: false\n                };\n                return renderElevator(name, data, waitingPerFloor);\n            }).join('');\n        }\n    });\n})(scope);\n</script>",
+        "storeOutMessages": false,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 840,
+        "y": 130,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f88014caf67757de",
+        "type": "ui_template",
+        "z": "a1ab45a4a59109e7",
+        "group": "control_group",
+        "name": "Control Panel",
+        "order": 1,
+        "width": "6",
+        "height": "8",
+        "format": "<div id=\"control-panel\">\n    <style>\n        #control-panel {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n            padding: 20px;\n            background: white;\n            border-radius: 12px;\n            box-shadow: 0 2px 8px rgba(0,0,0,0.08);\n            border: 1px solid #e8ecef;\n        }\n        \n        .control-header {\n            font-size: 1.3em;\n            font-weight: 600;\n            color: #34495e;\n            margin: 0 0 20px 0;\n            padding-bottom: 15px;\n            border-bottom: 2px solid #f0f3f5;\n        }\n        \n        .control-section {\n            margin-bottom: 20px;\n        }\n        \n        .control-label {\n            display: block;\n            font-size: 0.9em;\n            font-weight: 600;\n            color: #5a6c7d;\n            margin-bottom: 8px;\n        }\n        \n        .control-input {\n            width: 100%;\n            padding: 12px;\n            border: 1px solid #dfe4e8;\n            border-radius: 6px;\n            font-size: 1em;\n            font-family: inherit;\n            transition: border-color 0.2s;\n        }\n        \n        .control-input:focus {\n            outline: none;\n            border-color: #3498db;\n            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);\n        }\n        \n        .control-button {\n            width: 100%;\n            padding: 14px;\n            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);\n            color: white;\n            border: none;\n            border-radius: 6px;\n            font-size: 1em;\n            font-weight: 600;\n            cursor: pointer;\n            transition: all 0.2s;\n            box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);\n        }\n        \n        .control-button:hover {\n            transform: translateY(-1px);\n            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);\n        }\n        \n        .control-button:active {\n            transform: translateY(0);\n        }\n        \n        .success-message {\n            margin-top: 12px;\n            padding: 10px;\n            background: #d4edda;\n            border-radius: 6px;\n            font-size: 0.85em;\n            color: #155724;\n            border-left: 3px solid #28a745;\n            display: none;\n        }\n        \n        .success-message.show {\n            display: block;\n        }\n    </style>\n    \n    <div class=\"control-header\">Steuerung</div>\n    \n    <div class=\"control-section\">\n        <label class=\"control-label\">Neue Passagiere</label>\n        <input type=\"number\" \n               id=\"passenger-count\" \n               class=\"control-input\" \n               placeholder=\"Anzahl eingeben\" \n               min=\"1\" \n               max=\"50\"\n               value=\"5\">\n    </div>\n    \n    <button class=\"control-button\" onclick=\"createPassengers()\">Passagiere erstellen</button>\n    \n    <div class=\"success-message\" id=\"success-msg\">Passagiere erfolgreich erstellt!</div>\n</div>\n\n<script>\n(function(scope) {\n    window.createPassengers = function() {\n        const count = parseInt(document.getElementById('passenger-count').value);\n        \n        if (isNaN(count) || count < 1 || count > 50) {\n            alert('Bitte gib eine Zahl zwischen 1 und 50 ein.');\n            return;\n        }\n        \n        // Send MQTT message via Node-RED\n        scope.send({payload: count});\n        \n        // Show success message\n        const successMsg = document.getElementById('success-msg');\n        successMsg.classList.add('show');\n        setTimeout(() => {\n            successMsg.classList.remove('show');\n        }, 3000);\n    };\n})(scope);\n</script>",
+        "storeOutMessages": true,
+        "fwdInMessages": false,
+        "resendOnRefresh": false,
+        "templateScope": "local",
+        "className": "",
+        "x": 390,
+        "y": 280,
+        "wires": [
+            [
+                "4e3b3aa93a9e2f24"
+            ]
+        ]
+    },
+    {
+        "id": "4e3b3aa93a9e2f24",
+        "type": "function",
+        "z": "a1ab45a4a59109e7",
+        "name": "Format Message",
+        "func": "// The payload is the count of persons to create\nconst count = msg.payload;\nconst floors = ['Ground', 'First', 'Second', 'Third'];\n\n// Get or initialize the person counter\nlet personCounter = flow.get('personCounter') || 0;\n\n// Generate random floor\nfunction randomFloor() {\n    return floors[Math.floor(Math.random() * floors.length)];\n}\n\n// Create multiple messages, one for each person\nconst messages = [];\n\nfor (let i = 0; i < count; i++) {\n    personCounter++;\n    const personId = `Person_${personCounter}`;\n    const currentFloor = randomFloor();\n    let destinationFloor = randomFloor();\n    \n    // Make sure destination is different from current\n    while (destinationFloor === currentFloor) {\n        destinationFloor = randomFloor();\n    }\n    \n    messages.push({\n        topic: 'person/introduce',\n        payload: {\n            id: personId,\n            curr: currentFloor,\n            dest: destinationFloor\n        }\n    });\n}\n\n// Save the updated counter and persons data\nflow.set('personCounter', personCounter);\n\nreturn [messages];",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 600,
+        "y": 280,
+        "wires": [
+            [
+                "fd1c576470623973"
+            ]
+        ]
+    },
+    {
+        "id": "fd1c576470623973",
+        "type": "mqtt out",
+        "z": "a1ab45a4a59109e7",
+        "name": "Publish to person/introduce",
+        "topic": "person/introduce",
+        "qos": "1",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt_broker",
+        "x": 840,
+        "y": 280,
+        "wires": []
+    }
+]

@@ -197,9 +197,14 @@ impl ElevatorController {
         let state = self.state.get_mut(&elevator).unwrap();
 
         state.mission = None;
+        state.missions.retain(|&floor| floor != state.floor);
         state.door = Open;
 
         let _ = self.to_persons.send(ElevatorHalt(elevator.clone(), state.floor));
+
+        let missions = state.missions.iter().cloned().collect();
+        let id = elevator.clone();
+        ElevatorController::missions(self.to_mqtt.clone(), id, missions);
     }
 
     async fn handle_doors_closing(&mut self, elevator: String) {
@@ -240,9 +245,6 @@ impl ElevatorController {
             let _ = self.to_elevators.send(ElevatorMission(elevator.id.clone(), target));
         } else if !elevator.missions.contains(&target) {
             elevator.missions.push_back(target);
-            let missions = elevator.missions.iter().cloned().collect();
-            let id = elevator.id.clone();
-            ElevatorController::missions(self.to_mqtt.clone(), id, missions);
         }
     }
 

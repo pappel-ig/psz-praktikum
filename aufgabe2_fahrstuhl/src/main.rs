@@ -55,7 +55,7 @@ async fn main() {
         controller_handle,
     ];
 
-    for i in 0..1000 {
+    for i in 0..20 {
         let person_id = format!("Person_{}", i);
         threads.push(Person::new(
             &person_id,
