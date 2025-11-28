@@ -6,7 +6,9 @@ use crate::person::Person;
 use log::LevelFilter;
 use mqtt::MqttConnector;
 use tokio::sync::{broadcast, mpsc};
-
+use std::collections::HashSet;
+use crate::utils::SPEED_FACTOR;
+use std::sync::atomic::Ordering;
 mod controller;
 mod elevator;
 mod msg;
@@ -55,8 +57,8 @@ async fn main() {
         controller_handle,
     ];
 
-    for i in 0..20 {
-        let person_id = format!("Person_{}", i);
+    for i in 0..5 {
+        let person_id = format!("Student_{}", i);
         threads.push(Person::new(
             &person_id,
             controller_to_persons_tx.subscribe(),
@@ -65,23 +67,30 @@ async fn main() {
         ).init());
     }
 
+    let mut created_persons: HashSet<String> = HashSet::new();
     loop {
+
         if let Some(msg) = mqtt_to_person_rx.recv().await {
             match msg {
                 Receive::Person { id, curr: current_floor, dest: destination_floor } => {
-                    let person = Person::with(
-                        &id,
-                        controller_to_persons_tx.subscribe(),
-                        person_to_controller_tx.clone(),
-                        to_mqtt_tx.clone(),
-                        current_floor,
-                        destination_floor
-                    );
-                    threads.push(person.init());
+                    if created_persons.insert(id.clone()) {
+                        println!("Person erstellt via MQTT: id={}, curr={:?}, dest={:?}", id, current_floor, destination_floor);
+                        let person = Person::with(
+                            &id,
+                            controller_to_persons_tx.subscribe(),
+                            person_to_controller_tx.clone(),
+                            to_mqtt_tx.clone(),
+                            current_floor,
+                            destination_floor
+                        );
+                        threads.push(person.init());
+                    }
+                }
+                Receive::Speed { speed } => {
+                    SPEED_FACTOR.store(speed, Ordering::Relaxed);
+                    println!("Simulationsgeschwindigkeit geändert: {}%", speed);
                 }
             }
         }
     }
 }
-
-
