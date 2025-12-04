@@ -22,6 +22,7 @@ pub enum Send {
     }
 }
 
+
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ElevatorMsg {
@@ -48,6 +49,9 @@ pub enum Receive {
         id: String,
         curr: Floor,
         dest: Floor,
+    },
+    Speed {
+        speed: u64,
     }
 }
 
@@ -74,6 +78,7 @@ impl MqttConnector {
         let to = self.to.clone();
         tokio::spawn(async move {
             client.subscribe("person/introduce", 1).await.unwrap();
+            client.subscribe("simulation/speed", 1).await.unwrap();
             let receiver = client.get_stream(100);
             loop {
                 if let Ok(Some(msg)) = receiver.recv().await {

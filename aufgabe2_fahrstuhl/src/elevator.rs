@@ -1,5 +1,5 @@
 use log::error;
-use crate::controller::Floor;
+use crate::controller::{ElevatorController, Floor};
 use crate::elevator::DoorStatus::{Closed, Open};
 use crate::elevator::ElevatorStatus::IdleIn;
 use crate::mqtt::ElevatorMsg::{Door, Position};
@@ -99,9 +99,10 @@ impl Elevator {
     async fn handle_mission(&mut self, dest: Floor) {
         self.state.status = MovingFromTo(self.state.floor, dest);
         let _ = self.to_controller.send(ElevatorMoving(self.id.clone(), self.state.floor, dest)).await;
-        delay(3000);
+        let distance_to_travel = (self.state.floor as i8 - dest as i8).abs() as u64;
+        delay(distance_to_travel * 1000).await;
         self.state.status = IdleIn(dest);
-        self.position().await;
+        Elevator::position(self.to_mqtt.clone(), self.id.clone(), dest);
         let _ = self.to_controller.send(ElevatorArrived(self.id.clone(), dest)).await;
     }
 
@@ -109,11 +110,11 @@ impl Elevator {
         if self.state.doors_status.eq(&Closed) {
 
             self.state.doors_status = Opening;
-            self.door().await;
+            Elevator::door(self.to_mqtt.clone(), self.id.clone(), self.state.doors_status.clone());
             let _ = self.to_controller.send(DoorsOpening(self.id.clone())).await;
-            delay(1500);
+            delay(1500).await;
             self.state.doors_status = Open;
-            self.door().await;
+            Elevator::door(self.to_mqtt.clone(), self.id.clone(), self.state.doors_status.clone());
             let _ = self.to_controller.send(DoorsOpened(self.id.clone())).await;
         }
     }
@@ -121,35 +122,39 @@ impl Elevator {
     async fn handle_close_doors(&mut self) {
         if self.state.doors_status.eq(&Open) {
             self.state.doors_status = Closing;
-            self.door().await;
+            Elevator::door(self.to_mqtt.clone(), self.id.clone(), self.state.doors_status.clone());
             let _ = self.to_controller.send(DoorsClosing(self.id.clone())).await;
-            delay(1500);
+            delay(1500).await;
             self.state.doors_status = Closed;
-            self.door().await;
+            Elevator::door(self.to_mqtt.clone(), self.id.clone(), self.state.doors_status.clone());
             let _ = self.to_controller.send(DoorsClosed(self.id.clone())).await;
         }
     }
 
     // MQTT Updates
 
-    async fn position(&mut self) {
-        let msg = ElevatorTopic {
-            id: self.id.clone(),
-            msg: Position {
-                floor: self.state.floor
-            },
-        };
-        let _ = self.to_mqtt.send(msg).await;
+    fn position(to_mqtt: Sender<crate::mqtt::Send>, id: String, floor: Floor) {
+        tokio::spawn(async move {
+            let msg = ElevatorTopic {
+                id,
+                msg: Position {
+                    floor
+                },
+            };
+            let _ = to_mqtt.send(msg).await;
+        });
     }
 
-    async fn door(&mut self) {
-        let msg = ElevatorTopic {
-            id: self.id.clone(),
-            msg: Door {
-                status: self.state.doors_status.clone()
-            },
-        };
-        let _ = self.to_mqtt.send(msg).await;
+    fn door(to_mqtt: Sender<crate::mqtt::Send>, id: String, status: DoorStatus) {
+        tokio::spawn(async move {
+            let msg = ElevatorTopic {
+                id,
+                msg: Door {
+                    status
+                },
+            };
+            let _ = to_mqtt.send(msg).await;
+        });
     }
 }
 
