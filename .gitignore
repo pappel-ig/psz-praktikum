@@ -1,3 +1,7 @@
 **/target
 .idea
 *.iml
+
+# npm cache (zu lange Dateinamen für Windows)
+**/.npm/
+**/node_modules/
