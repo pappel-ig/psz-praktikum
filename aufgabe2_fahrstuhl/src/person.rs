@@ -238,3 +238,353 @@ impl Person {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::sync::{broadcast, mpsc};
+    use crate::controller::Floor::*;
+    use std::collections::HashSet;
+
+    fn create_test_person(id: &str, current: Floor, destination: Floor) -> (
+        Person,
+        broadcast::Sender<ControllerToPersonsMsg>,
+        mpsc::Receiver<PersonToControllerMsg>,
+        mpsc::Receiver<crate::mqtt::Send>,
+    ) {
+        let (to_person_tx, to_person_rx) = broadcast::channel(100);
+        let (from_person_tx, from_person_rx) = mpsc::channel(100);
+        let (mqtt_tx, mqtt_rx) = mpsc::channel(100);
+
+        let person = Person::with(
+            id,
+            to_person_rx,
+            from_person_tx,
+            mqtt_tx,
+            current,
+            destination,
+        );
+
+        (person, to_person_tx, from_person_rx, mqtt_rx)
+    }
+
+    #[test]
+    fn test_person_status_variants() {
+        assert_eq!(Idle, Idle);
+        assert_ne!(Idle, Entering);
+        assert_ne!(Entering, InElevator);
+        assert_ne!(InElevator, Leaving);
+        assert_ne!(Leaving, Done);
+    }
+
+    #[test]
+    fn test_pick_two_distinct_floors_returns_different_floors() {
+        // Run multiple times to ensure randomness works correctly
+        for _ in 0..100 {
+            let (from, to) = Person::pick_two_distinct_floors();
+            assert_ne!(from, to, "Current and destination floors should be different");
+        }
+    }
+
+    #[test]
+    fn test_pick_two_distinct_floors_returns_valid_floors() {
+        let valid_floors: HashSet<Floor> = vec![Ground, First, Second, Third].into_iter().collect();
+        
+        for _ in 0..50 {
+            let (from, to) = Person::pick_two_distinct_floors();
+            assert!(valid_floors.contains(&from), "From floor should be valid");
+            assert!(valid_floors.contains(&to), "To floor should be valid");
+        }
+    }
+
+    #[test]
+    fn test_person_with_constructor() {
+        let (to_person_tx, to_person_rx) = broadcast::channel(100);
+        let (from_person_tx, _from_person_rx) = mpsc::channel(100);
+        let (mqtt_tx, _mqtt_rx) = mpsc::channel(100);
+
+        let person = Person::with(
+            "P1",
+            to_person_rx,
+            from_person_tx,
+            mqtt_tx,
+            Ground,
+            Third,
+        );
+
+        assert_eq!(person.id, "P1");
+        assert_eq!(person.state.current_floor, Ground);
+        assert_eq!(person.state.destination_floor, Third);
+        assert_eq!(person.state.status, Idle);
+        assert!(person.state.elevator.is_none());
+    }
+
+    #[test]
+    fn test_person_new_constructor() {
+        let (to_person_tx, to_person_rx) = broadcast::channel(100);
+        let (from_person_tx, _from_person_rx) = mpsc::channel(100);
+        let (mqtt_tx, _mqtt_rx) = mpsc::channel(100);
+
+        let person = Person::new(
+            "P2",
+            to_person_rx,
+            from_person_tx,
+            mqtt_tx,
+        );
+
+        assert_eq!(person.id, "P2");
+        assert_eq!(person.state.status, Idle);
+        assert!(person.state.elevator.is_none());
+        // Floors should be randomly selected but different
+        assert_ne!(person.state.current_floor, person.state.destination_floor);
+    }
+
+    #[tokio::test]
+    async fn test_request_elevator_sends_message() {
+        let (mut person, _, mut from_person_rx, _) = create_test_person("P1", Ground, First);
+
+        person.request_elevator().await;
+
+        let msg = from_person_rx.recv().await.unwrap();
+        assert_eq!(msg, PersonToControllerMsg::PersonRequestElevator(Ground));
+    }
+
+    #[tokio::test]
+    async fn test_handle_elevator_halt_when_on_same_floor_and_idle() {
+        let (mut person, _, mut from_person_rx, _) = create_test_person("P1", Ground, First);
+
+        // Person is Idle and on Ground floor
+        person.handle_elevator_halt("E1".to_string(), Ground).await;
+
+        // Status should change to Entering
+        assert_eq!(person.state.status, Entering);
+
+        // Should send PersonEnteringElevator message
+        let msg = from_person_rx.recv().await.unwrap();
+        match msg {
+            PersonToControllerMsg::PersonEnteringElevator(person_id, elevator_id) => {
+                assert_eq!(person_id, "P1");
+                assert_eq!(elevator_id, "E1");
+            }
+            _ => panic!("Expected PersonEnteringElevator message"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_elevator_halt_ignores_different_floor() {
+        let (mut person, _, mut from_person_rx, _) = create_test_person("P1", Ground, First);
+
+        // Elevator stops at different floor
+        person.handle_elevator_halt("E1".to_string(), Second).await;
+
+        // Status should remain Idle
+        assert_eq!(person.state.status, Idle);
+
+        // No message should be sent (channel should be empty after timeout)
+        tokio::select! {
+            _ = from_person_rx.recv() => panic!("Should not receive message"),
+            _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {}
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_elevator_halt_ignores_when_not_idle() {
+        let (mut person, _, mut from_person_rx, _) = create_test_person("P1", Ground, First);
+        person.state.status = InElevator;
+
+        person.handle_elevator_halt("E1".to_string(), Ground).await;
+
+        // Status should remain InElevator
+        assert_eq!(person.state.status, InElevator);
+
+        tokio::select! {
+            _ = from_person_rx.recv() => panic!("Should not receive message"),
+            _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {}
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_update_boarding_status_accepted() {
+        let (mut person, _, mut from_person_rx, _) = create_test_person("P1", Ground, Third);
+        person.state.status = Entering;
+
+        person.handle_update_boarding_status("P1".to_string(), "E1".to_string(), BoardingStatus::Accepted).await;
+
+        assert_eq!(person.state.status, InElevator);
+        assert_eq!(person.state.elevator, Some("E1".to_string()));
+
+        // Should send PersonChoosingFloor
+        let msg = from_person_rx.recv().await.unwrap();
+        match msg {
+            PersonToControllerMsg::PersonChoosingFloor(person_id, elevator_id, floor) => {
+                assert_eq!(person_id, "P1");
+                assert_eq!(elevator_id, "E1");
+                assert_eq!(floor, Third);
+            }
+            _ => panic!("Expected PersonChoosingFloor message"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_update_boarding_status_ignored_for_other_person() {
+        let (mut person, _, mut from_person_rx, _) = create_test_person("P1", Ground, First);
+        person.state.status = Entering;
+
+        // Message for different person
+        person.handle_update_boarding_status("P2".to_string(), "E1".to_string(), BoardingStatus::Accepted).await;
+
+        // Status should remain Entering
+        assert_eq!(person.state.status, Entering);
+        assert!(person.state.elevator.is_none());
+
+        tokio::select! {
+            _ = from_person_rx.recv() => panic!("Should not receive message"),
+            _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {}
+        }
+    }
+
+    #[test]
+    fn test_person_state_display() {
+        let state = PersonState {
+            status: Idle,
+            current_floor: Ground,
+            destination_floor: Third,
+            elevator: None,
+        };
+
+        let display = format!("{}", state);
+        assert!(display.contains("Idle"));
+        assert!(display.contains("Ground"));
+        assert!(display.contains("Third"));
+    }
+
+    // ========================================================================
+    // Z3: Zustände eines Passagiers
+    // ========================================================================
+
+    #[test]
+    fn test_z3_all_person_states_exist() {
+        // All required states from Z3:
+        // - idle auf Ebene x
+        // - betritt Fahrkabine
+        // - wählt Zielebene (Choosing)
+        // - ist in Fahrkabine (InElevator)
+        // - verlässt Fahrkabine (Leaving)
+        // - Done (completed)
+        
+        let states = vec![Idle, Entering, PersonStatus::Choosing, InElevator, Leaving, Done];
+        assert_eq!(states.len(), 6);
+        
+        // All states are distinct
+        assert_ne!(Idle, Entering);
+        assert_ne!(Entering, InElevator);
+        assert_ne!(InElevator, Leaving);
+        assert_ne!(Leaving, Done);
+    }
+
+    #[test]
+    fn test_z3_person_starts_idle_on_floor() {
+        let (_to_person_tx, to_person_rx) = broadcast::channel(100);
+        let (from_person_tx, _from_person_rx) = mpsc::channel(100);
+        let (mqtt_tx, _mqtt_rx) = mpsc::channel(100);
+
+        let person = Person::with(
+            "P1",
+            to_person_rx,
+            from_person_tx,
+            mqtt_tx,
+            First,  // current floor
+            Third,  // destination
+        );
+
+        // Person starts Idle on their current floor
+        assert_eq!(person.state.status, Idle);
+        assert_eq!(person.state.current_floor, First);
+    }
+
+    // ========================================================================
+    // P1: Passagiere werden auf Ebenen erzeugt mit zufälligem Ziel
+    // ========================================================================
+
+    #[test]
+    fn test_p1_person_created_with_random_floors() {
+        // Run multiple times to verify randomness
+        let mut seen_combinations = std::collections::HashSet::new();
+        
+        for _ in 0..20 {
+            let (from, to) = Person::pick_two_distinct_floors();
+            seen_combinations.insert((from, to));
+            
+            // Current and destination must be different
+            assert_ne!(from, to);
+        }
+        
+        // With 20 attempts, we should see multiple different combinations
+        assert!(seen_combinations.len() > 1, "Should have random variety");
+    }
+
+    // ========================================================================
+    // P3: Passagiere wählen zufällig Zielebene
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_p3_person_chooses_destination_floor() {
+        let (mut person, _, mut from_person_rx, _) = create_test_person("P1", Ground, Third);
+        person.state.status = Entering;
+
+        // Simulate acceptance - person will choose their destination floor
+        person.handle_update_boarding_status("P1".to_string(), "E1".to_string(), BoardingStatus::Accepted).await;
+
+        // Person should send PersonChoosingFloor with their destination
+        let msg = from_person_rx.recv().await.unwrap();
+        match msg {
+            PersonToControllerMsg::PersonChoosingFloor(_, _, floor) => {
+                assert_eq!(floor, Third); // The destination they were created with
+            }
+            _ => panic!("Expected PersonChoosingFloor message"),
+        }
+    }
+
+    // ========================================================================
+    // State transitions
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_person_state_transition_idle_to_entering() {
+        let (mut person, _, _, _) = create_test_person("P1", Ground, First);
+        
+        assert_eq!(person.state.status, Idle);
+        
+        // Elevator arrives at person's floor
+        person.handle_elevator_halt("E1".to_string(), Ground).await;
+        
+        assert_eq!(person.state.status, Entering);
+    }
+
+    #[tokio::test]
+    async fn test_person_state_transition_entering_to_in_elevator() {
+        let (mut person, _, _, _) = create_test_person("P1", Ground, First);
+        person.state.status = Entering;
+        
+        // Boarding accepted
+        person.handle_update_boarding_status("P1".to_string(), "E1".to_string(), BoardingStatus::Accepted).await;
+        
+        assert_eq!(person.state.status, InElevator);
+        assert_eq!(person.state.elevator, Some("E1".to_string()));
+    }
+
+    // ========================================================================
+    // P2: Passagiere betreten bei offen/öffnend/schließend (handled by controller)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_p2_person_attempts_to_enter_when_elevator_halts() {
+        let (mut person, _, mut from_person_rx, _) = create_test_person("P1", Ground, First);
+
+        // Elevator halts at person's floor
+        person.handle_elevator_halt("E1".to_string(), Ground).await;
+
+        // Person should try to enter (sends PersonEnteringElevator)
+        let msg = from_person_rx.recv().await.unwrap();
+        assert!(matches!(msg, PersonToControllerMsg::PersonEnteringElevator(_, _)));
+    }
+}

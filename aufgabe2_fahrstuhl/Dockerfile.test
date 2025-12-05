@@ -1,0 +1,16 @@
+FROM rust:latest
+
+# Install build dependencies for paho-mqtt
+RUN apt-get update && apt-get install -y \
+    cmake \
+    libssl-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy source files
+COPY . .
+
+# Run tests
+CMD ["cargo", "test"]
